@@ -1,0 +1,59 @@
+Object ID, ,Last Data Refresh,Study Region (for Merging),top 10 % ownership,Acreage top 10% owns,top 1 % ownership,Acreage top 1% owns,Ag Acreage,# of Owners in top 10 %,Ag Output Notes
+1,Alameda,8/5/25,Bay Area & Central Coast,84.95%,235345.70,50.16%,138949.06,277026.85,262,
+2,Contra Costa,8/5/25,Bay Area & Central Coast,88.33%,192312.30,60.92%,132637.03,217727.57,3404,
+3,Monterey,8/5/25,Bay Area & Central Coast,60.53%,558676.68,23.61%,217895.40,923016.69,199,
+4,San Benito,8/5/25,Bay Area & Central Coast,80.32%,672766.98,42.25%,353906.60,837650.06,277,
+5,San Francisco,8/5/25,Bay Area & Central Coast,,-,,-,0.00,-,No ag parcels
+6,San Luis Obispo,8/5/25,Bay Area & Central Coast,76.09%,943872.43,45.40%,563215.77,1240450.14,615,
+7,San Mateo,8/5/25,Bay Area & Central Coast,80.71%,56128.38,38.74%,26939.75,69546.30,73,
+8,Santa Barbara,8/5/25,Bay Area & Central Coast,56.94%,676743.65,31.08%,369424.17,1188508.38,407,
+9,Santa Clara,8/5/25,Bay Area & Central Coast,60.95%,326852.51,55.43%,297218.27,536247.69,6046,
+10,Santa Cruz,8/5/25,Bay Area & Central Coast,69.74%,57104.78,39.84%,32624.21,81878.39,901,
+11,Ventura,8/5/25,Bay Area & Central Coast,78.46%,251609.56,40.09%,128542.60,320664.92,463,
+12,Fresno,8/3/25,Central Valley,73.70%,1628126.60,45.81%,1011889.76,2209028.73,2183,
+13,Kern ,8/3/25,Central Valley,68.47%,2585844.29,50.54%,1908801.21,3776713.15,2544,2334 records with no owner or mailadd
+14,Kings,8/3/25,Central Valley,86.73%,717090.83,66.18%,547164.36,826796.42,515,Majority defined by lbcs
+15,Madera,8/3/25,Central Valley,76.00%,550092.48,37.89%,274283.15,723830.62,566,Majority defined by lbcs
+16,Merced,8/3/25,Central Valley,61.90%,554124.27,29.61%,265073.73,895136.21,692,Majority defined by cdl
+17,San Joaquin,8/3/25,Central Valley,81.99%,592770.97,39.88%,288285.05,722966.02,1297,Defined completely by cdl
+18,Stanislaus,8/3/25,Central Valley,82.72%,671085.53,46.62%,378256.41,811285.73,1089,Defined completely by cdl
+19,Tulare,8/3/25,Central Valley,92.13%,2282271.99,70.35%,1742719.14,2477142.14,1433,
+20,Del Norte,7/29/25,North Coast,56.80%,13074.83,34.92%,8038.25,23020.74,276,
+21,Humboldt,7/29/25,North Coast,87.49%,412557.82,53.19%,250819.98,471569.64,611,
+22,Lake,7/29/25,North Coast,38.25%,147961.62,16.38%,63345.82,386797.16,193,
+23,Marin,7/29/25,North Coast,79.31%,145079.70,36.48%,66738.70,182929.02,415,
+24,Mendocino,7/29/25,North Coast,73.48%,496558.80,35.00%,236508.31,675790.52,332,
+25,Napa,7/29/25,North Coast,60.18%,239831.33,29.93%,119302.84,398544.38,540,Napa has 140 nullmailadds associated with different cities
+26,Sonoma,7/29/25,North Coast,77.65%,508552.55,44.33%,290363.91,654931.61,1743,
+27,Trinity,7/29/25,North Coast,33.89%,40771.83,19.75%,23758.27,120321.72,88,
+28,Lassen,8/4/25,Northern California,20.96%,83135.25,6.93%,27477.24,396557.34,53,Output is low and generally coded household. No zoning_des data to use
+29,Modoc,8/4/25,Northern California,42.51%,104971.16,14.77%,36482.58,246937.04,59,Output is low and generally coded household. No zoning_des data to use
+30,Shasta,8/4/25,Northern California,67.33%,380342.39,40.92%,231149.82,564918.79,504,
+31,Siskiyou,8/4/25,Northern California,23.56%,793177.44,15.04%,506224.23,3366276.00,1515,
+32,Butte,8/5/25,Sacramento Valley,64.72%,518978.27,39.54%,317074.00,801904.96,760,
+33,Colusa,8/5/25,Sacramento Valley,57.19%,297512.01,21.59%,112319.58,520181.65,162,89 null mailadds with different cities
+34,Glenn ,8/5/25,Sacramento Valley,66.52%,381116.90,28.67%,164246.70,572957.06,192,
+35,Sacramento,8/5/25,Sacramento Valley,89.56%,382242.06,59.44%,253695.21,426798.61,1421,
+36,Solano,8/5/25,Sacramento Valley,75.40%,273153.83,38.25%,138576.22,362264.65,236,
+37,Sutter,8/5/25,Sacramento Valley,74.80%,256231.08,26.26%,89955.26,342543.23,349,
+38,Tehama,8/5/25,Sacramento Valley,84.68%,879856.10,48.70%,505987.17,1039026.23,526,
+39,Yolo,8/5/25,Sacramento Valley,76.58%,427140.15,32.21%,179629.95,557736.13,314,
+40,Yuba,8/5/25,Sacramento Valley,54.21%,122538.19,24.69%,55801.70,226053.18,274,
+41,Alpine,7/30/25,Sierras,5.16%,12291.81,1.25%,2985.98,238342.44,17,"null mailadd accounts for 218,068 acres ~90%"
+42,Amador,7/30/25,Sierras,72.58%,157762.65,35.23%,76570.13,217372.98,519,
+43,Calaveras,7/30/25,Sierras,66.36%,272131.20,32.05%,131438.60,410080.53,494,
+44,El Dorado,7/30/25,Sierras,62.27%,54099.04,26.60%,23108.38,86882.37,171,
+45,Inyo,7/30/25,Sierras,47.05%,24355.83,43.64%,22591.11,51769.36,7,
+46,Mariposa,7/30/25,Sierras,66.10%,192704.49,20.97%,61118.27,291515.40,63,
+47,Mono ,7/30/25,Sierras,3.44%,55863.20,1.35%,21863.04,1625102.51,38,25852 acres associated with null address
+48,Nevada,7/30/25,Sierras,59.06%,120010.68,31.06%,63110.16,203187.21,1797,
+49,Placer,7/30/25,Sierras,67.25%,104846.35,45.91%,71575.29,155904.22,2182,
+50,Plumas,7/30/25,Sierras,78.76%,55858.44,34.05%,24151.33,70925.59,64,
+51,Sierra,7/30/25,Sierras,30.78%,2043.00,,-,6637.86,2,Only 22 parcels with mailadd; very low information county
+52,Tuolumne,7/30/25,Sierras,72.30%,148174.37,32.98%,67593.14,204946.44,177,
+53,Imperial ,7/27/25,Southern California,42.42%,222774.94,11.64%,61119.47,525212.47,130,139 null mailadds with different cities
+54,Los Angeles,7/27/25,Southern California,60.19%,361218.72,36.28%,217723.72,600098.56,3336,
+55,Orange,7/27/25,Southern California,87.86%,160268.84,74.53%,135951.52,182406.09,353,
+56,Riverside,7/27/25,Southern California,83.90%,633416.05,59.26%,447370.88,754941.77,4655,
+57,San Bernardino,7/27/25,Southern California,76.27%,52708.67,43.27%,29898.83,69105.28,921,
+58,San Diego,7/27/25,Southern California,81.21%,385600.33,48.62%,230838.62,474799.55,4377,
