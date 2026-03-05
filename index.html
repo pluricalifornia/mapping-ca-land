@@ -175,7 +175,7 @@
     .comp-val { font-family: var(--font-mono); font-size: 12px; font-weight: 500; }
     .note-box { background: rgba(224,123,63,0.08); border: 1px solid rgba(224,123,63,0.25); border-radius: 3px; padding: 8px; margin-top: 10px; font-size: 10px; color: var(--text-dim); line-height: 1.5; font-family: var(--font-mono); }
 
-    /* ── Loading / Error ── */
+    /* ── Loading ── */
     #loading {
       position: absolute; inset: 0; background: var(--bg);
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -264,26 +264,33 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════
-//  CONFIG  — all data comes from GitHub; nothing is embedded
+//  CONFIG
 // ═══════════════════════════════════════════════════════════════
-const BASE_URL    = "https://raw.githubusercontent.com/pluricalifornia/mapping-ca-land/main";
+const BASE_URL     = "https://raw.githubusercontent.com/pluricalifornia/mapping-ca-land/main";
 const COUNTIES_URL = `${BASE_URL}/data/CA_COUNTIES.json`;
 const CSV_URL      = `${BASE_URL}/data/ca_county_ownership.csv`;
 
 // ═══════════════════════════════════════════════════════════════
 //  State
 // ═══════════════════════════════════════════════════════════════
-let ownershipMap   = {};   // lowercase county name → parsed row
-let currentMetric  = 'top10';
-let currentRegion  = 'all';
-let selectedCounty = null;
-let countyLayer    = null;
-let mapView        = null;
+let ownershipMap      = {};   // lowercase name → parsed row
+let countyGraphicStore = {};  // exact NAME string → Graphic (for geometry access)
+let currentMetric     = 'top10';
+let currentRegion     = 'all';
+let selectedCounty    = null;
+let hoveredCounty     = null;
+
+// ArcGIS objects (set after init)
+let countyLayer       = null;
+let hoverLayer        = null;   // GraphicsLayer — hover outline
+let selectLayer       = null;   // GraphicsLayer — selected county outline
+let regionLayer       = null;   // GraphicsLayer — computed region boundary
+let mapView           = null;
+let geoEngine         = null;   // geometryEngine reference
+let GraphicCtor       = null;   // Graphic constructor reference
 
 // ═══════════════════════════════════════════════════════════════
 //  CSV parser
-//  Columns: Object ID | name | date | region | top10% | acres10
-//           | top1%  | acres1 | agAcres | owners10 | note
 // ═══════════════════════════════════════════════════════════════
 function parseCSV(text) {
   const lines = text.trim().split(/\r?\n/);
@@ -291,32 +298,27 @@ function parseCSV(text) {
   for (let i = 1; i < lines.length; i++) {
     const cols = splitCSVLine(lines[i]);
     if (!cols || cols.length < 9) continue;
-
     const name    = cols[1].trim();
     const region  = cols[3].trim();
-    const top10s  = cols[4].trim();   // "84.95%" or ""
+    const top10s  = cols[4].trim();
     const acres10 = parseFloat(cols[5]) || 0;
     const top1s   = cols[6].trim();
     const acres1  = parseFloat(cols[7]) || 0;
     const agAcres = parseFloat(cols[8]) || 0;
     const owners10= parseInt(cols[9])   || 0;
     const note    = (cols[10] || '').trim();
-
     if (!name) continue;
-
     result[name.toLowerCase()] = {
       name, region,
       top10:  top10s ? parseFloat(top10s) / 100 : null,
       acres10,
       top1:   top1s  ? parseFloat(top1s)  / 100 : null,
-      acres1,
-      agAcres, owners10, note
+      acres1, agAcres, owners10, note
     };
   }
   return result;
 }
 
-// RFC-4180 CSV split (handles quoted fields containing commas)
 function splitCSVLine(line) {
   const cols = [];
   let cur = '', inQ = false;
@@ -334,7 +336,6 @@ function splitCSVLine(line) {
 //  Lookup helpers
 // ═══════════════════════════════════════════════════════════════
 function getOwnership(geoName) {
-  // Try exact lowercase match first, then strip trailing spaces
   return ownershipMap[geoName.trim().toLowerCase()] || null;
 }
 
@@ -343,8 +344,14 @@ function metricVal(d) {
   return currentMetric === 'top10' ? d.top10 : d.top1;
 }
 
+function isInRegion(name) {
+  if (currentRegion === 'all') return true;
+  const d = getOwnership(name);
+  return d ? d.region === currentRegion : false;
+}
+
 // ═══════════════════════════════════════════════════════════════
-//  Color scale  low→green  mid→amber  high→red-orange
+//  Color scale
 // ═══════════════════════════════════════════════════════════════
 function valueToColor(v) {
   if (v === null || v === undefined || isNaN(v)) return [60, 65, 50];
@@ -370,7 +377,7 @@ function valueToColor(v) {
 // ═══════════════════════════════════════════════════════════════
 //  Format helpers
 // ═══════════════════════════════════════════════════════════════
-function fmtPct(v)  {
+function fmtPct(v) {
   if (v === null || v === undefined || isNaN(v)) return '—';
   return (v*100).toFixed(1)+'%';
 }
@@ -382,7 +389,7 @@ function fmtAcres(n) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Region pills (built from CSV data after load)
+//  Region pills
 // ═══════════════════════════════════════════════════════════════
 function buildRegionPills() {
   const regions = [...new Set(Object.values(ownershipMap).map(d=>d.region))].sort();
@@ -398,7 +405,7 @@ function buildRegionPills() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Filter helpers
+//  Filtered county entries (sidebar list & stats)
 // ═══════════════════════════════════════════════════════════════
 function filteredEntries(search = '') {
   return Object.values(ownershipMap).filter(d => {
@@ -413,8 +420,8 @@ function filteredEntries(search = '') {
 // ═══════════════════════════════════════════════════════════════
 function updateStats() {
   const entries = filteredEntries();
-  const v10 = entries.map(d=>d.top10).filter(v=>v!==null);
-  const v1  = entries.map(d=>d.top1 ).filter(v=>v!==null);
+  const v10     = entries.map(d=>d.top10).filter(v=>v!==null);
+  const v1      = entries.map(d=>d.top1 ).filter(v=>v!==null);
   const avg10   = v10.length ? v10.reduce((a,b)=>a+b,0)/v10.length : null;
   const avg1    = v1.length  ? v1.reduce((a,b)=>a+b,0)/v1.length  : null;
   const totalAg = entries.reduce((s,d)=>s+(d.agAcres||0), 0);
@@ -432,7 +439,7 @@ function renderList(search = '') {
     .sort((a,b) => (metricVal(b)||0) - (metricVal(a)||0));
 
   document.getElementById('countyList').innerHTML = entries.map(d => {
-    const val = metricVal(d);
+    const val  = metricVal(d);
     const [r,g,b] = valueToColor(val);
     const barW = val !== null ? (val*100).toFixed(1) : '0';
     const isSel = d.name === selectedCounty;
@@ -453,34 +460,6 @@ function renderList(search = '') {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Region filter
-// ═══════════════════════════════════════════════════════════════
-const REGION_EXTENTS = {
-  "Bay Area & Central Coast":  { center: [-121.0, 36.5], zoom: 7 },
-  "Central Valley":            { center: [-119.8, 36.5], zoom: 7 },
-  "North Coast":               { center: [-123.0, 38.8], zoom: 7 },
-  "Northern California":       { center: [-121.5, 41.2], zoom: 7 },
-  "Sacramento Valley":         { center: [-121.8, 39.5], zoom: 7 },
-  "Sierras":                   { center: [-119.7, 38.0], zoom: 7 },
-  "Southern California":       { center: [-117.5, 34.0], zoom: 7 }
-};
-
-function filterRegion(region, el) {
-  currentRegion = region;
-  document.querySelectorAll('.region-pill').forEach(p => p.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('searchInput').value = '';
-  renderList();
-  updateStats();
-  if (mapView) {
-    const target = region === 'all'
-      ? { center: [-119.5, 37.3], zoom: 6 }
-      : REGION_EXTENTS[region];
-    if (target) mapView.goTo(target, { duration: 600, easing: 'ease-in-out' });
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
 //  Metric toggle
 // ═══════════════════════════════════════════════════════════════
 function setMetric(m) {
@@ -496,18 +475,207 @@ function setMetric(m) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  Region filter
+// ═══════════════════════════════════════════════════════════════
+function filterRegion(region, el) {
+  currentRegion = region;
+  document.querySelectorAll('.region-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('searchInput').value = '';
+
+  // Clear any active selection when switching regions
+  selectedCounty = null;
+  clearSelectHighlight();
+  clearHoverHighlight();
+  closeDetailPanel();
+
+  renderList();
+  updateStats();
+  applyRenderer();
+  drawRegionBoundary();
+  zoomToCurrentRegion();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Renderer — county fill colors + dim out-of-region counties
+// ═══════════════════════════════════════════════════════════════
+function applyRenderer() {
+  if (!countyLayer) return;
+
+  const infos = Object.values(ownershipMap).map(d => {
+    const inRegion = isInRegion(d.name);
+    let fillColor, outline;
+
+    if (inRegion) {
+      const [r,g,b] = valueToColor(metricVal(d));
+      fillColor = [r, g, b, 215];
+      outline   = { color: [12, 16, 8, 160], width: 0.5 };
+    } else {
+      // Out-of-region: very dark, nearly invisible
+      fillColor = [18, 22, 14, 200];
+      outline   = { color: [25, 30, 18, 60], width: 0.3 };
+    }
+
+    return {
+      value: d.name,
+      symbol: { type: "simple-fill", color: fillColor, outline }
+    };
+  });
+
+  countyLayer.renderer = {
+    type: "unique-value",
+    field: "NAME",
+    defaultSymbol: {
+      type: "simple-fill",
+      color: [18, 22, 14, 200],
+      outline: { color: [25, 30, 18, 60], width: 0.3 }
+    },
+    uniqueValueInfos: infos
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Hover highlight — amber outline, no fill
+// ═══════════════════════════════════════════════════════════════
+function setHoverHighlight(name) {
+  if (!hoverLayer || !GraphicCtor) return;
+  hoverLayer.removeAll();
+  if (!name || name === selectedCounty) return;   // don't double-draw over selection
+
+  // Only highlight counties within the active region
+  if (!isInRegion(name)) return;
+
+  const g = countyGraphicStore[name];
+  if (!g) return;
+
+  hoverLayer.add(new GraphicCtor({
+    geometry: g.geometry,
+    symbol: {
+      type: "simple-fill",
+      color: [0, 0, 0, 0],                            // transparent fill
+      outline: { color: [220, 185, 80, 230], width: 2 } // amber outline
+    }
+  }));
+}
+
+function clearHoverHighlight() {
+  if (hoverLayer) hoverLayer.removeAll();
+  hoveredCounty = null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Selected county highlight — bright white outline + soft fill
+// ═══════════════════════════════════════════════════════════════
+function setSelectHighlight(name) {
+  if (!selectLayer || !GraphicCtor) return;
+  selectLayer.removeAll();
+  if (!name) return;
+
+  const g = countyGraphicStore[name];
+  if (!g) return;
+
+  selectLayer.add(new GraphicCtor({
+    geometry: g.geometry,
+    symbol: {
+      type: "simple-fill",
+      color: [255, 255, 255, 18],                          // very subtle white fill
+      outline: { color: [255, 255, 255, 240], width: 2.5 } // bright white border
+    }
+  }));
+}
+
+function clearSelectHighlight() {
+  if (selectLayer) selectLayer.removeAll();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Region boundary — union all in-region polygons → single outline
+// ═══════════════════════════════════════════════════════════════
+function drawRegionBoundary() {
+  if (!regionLayer || !GraphicCtor) return;
+  regionLayer.removeAll();
+  if (currentRegion === 'all' || !geoEngine) return;
+
+  const geoms = Object.entries(countyGraphicStore)
+    .filter(([name]) => isInRegion(name))
+    .map(([, graphic]) => graphic.geometry)
+    .filter(Boolean);
+
+  if (geoms.length === 0) return;
+
+  try {
+    const unioned = geoEngine.union(geoms);
+    regionLayer.add(new GraphicCtor({
+      geometry: unioned,
+      symbol: {
+        type: "simple-fill",
+        color: [0, 0, 0, 0],   // no fill — boundary outline only
+        outline: {
+          color: [122, 182, 72, 255],  // accent2 green
+          width: 2.5
+        }
+      }
+    }));
+  } catch (e) {
+    console.warn('Region boundary union failed:', e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Zoom — fit the region boundary extent, or full CA view
+// ═══════════════════════════════════════════════════════════════
+function zoomToCurrentRegion() {
+  if (!mapView) return;
+
+  if (currentRegion === 'all') {
+    mapView.goTo({ center: [-119.5, 37.3], zoom: 6 }, { duration: 600, easing: 'ease-in-out' });
+    return;
+  }
+
+  // Use the actual geometry extent from the graphic store
+  const geoms = Object.entries(countyGraphicStore)
+    .filter(([name]) => isInRegion(name))
+    .map(([, g]) => g.geometry)
+    .filter(Boolean);
+
+  if (geoms.length === 0) return;
+
+  try {
+    const unioned = geoEngine ? geoEngine.union(geoms) : geoms[0];
+    mapView.goTo(unioned.extent.expand(1.15), { duration: 700, easing: 'ease-in-out' });
+  } catch(e) {
+    // Fallback: expand the extent of all individual geometries
+    let ext = geoms[0].extent.clone();
+    geoms.forEach(g => { ext = ext.union(g.extent); });
+    mapView.goTo(ext.expand(1.15), { duration: 700, easing: 'ease-in-out' });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  County selection
 // ═══════════════════════════════════════════════════════════════
 function selectCounty(name) {
+  // If re-clicking the same county, keep it selected (don't deselect)
   selectedCounty = name;
+
+  // Move hover layer off this county (selected layer takes over)
+  clearHoverHighlight();
+  hoveredCounty = null;
+
+  setSelectHighlight(name);
   renderList(document.getElementById('searchInput').value);
   showDetail(name);
   zoomToCountyOnMap(name);
 }
 
-function closeDetail() {
+function closeDetailPanel() {
   document.getElementById('detailPanel').classList.remove('open');
+}
+
+function closeDetail() {
+  closeDetailPanel();
   selectedCounty = null;
+  clearSelectHighlight();
   renderList(document.getElementById('searchInput').value);
 }
 
@@ -583,61 +751,22 @@ function showDetail(name) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Map renderer  — unique-value by NAME field, color from CSV
-// ═══════════════════════════════════════════════════════════════
-function applyRenderer() {
-  if (!countyLayer) return;
-
-  const infos = Object.values(ownershipMap).map(d => {
-    const [r,g,b] = valueToColor(metricVal(d));
-    return {
-      value: d.name,
-      symbol: {
-        type: "simple-fill",
-        color: [r, g, b, 210],
-        outline: { color: [15, 20, 10, 180], width: 0.5 }
-      }
-    };
-  });
-
-  countyLayer.renderer = {
-    type: "unique-value",
-    field: "NAME",
-    defaultSymbol: {
-      type: "simple-fill",
-      color: [50, 55, 40, 100],
-      outline: { color: [15, 20, 10, 120], width: 0.3 }
-    },
-    uniqueValueInfos: infos
-  };
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  Zoom to county
+//  Zoom to selected county
 // ═══════════════════════════════════════════════════════════════
 function zoomToCountyOnMap(name) {
-  if (!countyLayer || !mapView) return;
-  const q = countyLayer.createQuery();
-  q.where = `NAME = '${name.replace(/'/g,"''")}'`;
-  q.returnGeometry = true;
-  countyLayer.queryFeatures(q).then(res => {
-    if (res.features.length > 0)
-      mapView.goTo(res.features[0].geometry.extent.expand(1.8), { duration: 500, easing: 'ease-in-out' });
-  }).catch(()=>{});
+  const g = countyGraphicStore[name];
+  if (!g || !mapView) return;
+  mapView.goTo(g.geometry.extent.expand(1.8), { duration: 500, easing: 'ease-in-out' });
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  Loading label helpers
+//  Loading label
 // ═══════════════════════════════════════════════════════════════
 function setLoadLabel(text, sub) {
   document.getElementById('loadLabel').textContent = text;
   if (sub !== undefined) document.getElementById('loadSub').textContent = sub;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Flatten nested coordinate array to a single [x,y] pair
-//  (used for detecting Web Mercator vs WGS84)
-// ═══════════════════════════════════════════════════════════════
 function flatFirst(coords) {
   if (!coords) return null;
   if (typeof coords[0] === 'number') return coords;
@@ -651,13 +780,18 @@ require([
   "esri/Map",
   "esri/views/MapView",
   "esri/layers/FeatureLayer",
+  "esri/layers/GraphicsLayer",
   "esri/Graphic",
   "esri/geometry/Polygon",
   "esri/geometry/SpatialReference",
+  "esri/geometry/geometryEngine",
   "esri/widgets/ScaleBar"
-], function(Map, MapView, FeatureLayer, Graphic, Polygon, SpatialReference, ScaleBar) {
+], function(Map, MapView, FeatureLayer, GraphicsLayer, Graphic, Polygon, SpatialReference, geometryEngine, ScaleBar) {
 
-  // ── 1. Fetch both files in parallel ──────────────────────────
+  // Expose engine & constructor to outer scope
+  geoEngine   = geometryEngine;
+  GraphicCtor = Graphic;
+
   setLoadLabel('FETCHING DATA…', CSV_URL);
 
   Promise.all([
@@ -672,27 +806,24 @@ require([
   ])
   .then(([csvText, geojson]) => {
 
-    // ── 2. Parse CSV ──────────────────────────────────────────
+    // ── Parse CSV ─────────────────────────────────────────────
     setLoadLabel('PARSING CSV…', '');
     ownershipMap = parseCSV(csvText);
     if (Object.keys(ownershipMap).length === 0)
-      throw new Error('CSV parsed but returned 0 rows. Verify the file format matches the expected columns.');
+      throw new Error('CSV parsed but returned 0 rows. Verify the file format.');
 
     buildRegionPills();
     updateStats();
 
-    // ── 3. Detect spatial reference from first coordinate ─────
-    const features = Array.isArray(geojson)
-      ? geojson                        // bare array of Feature objects
-      : (geojson.features || []);      // GeoJSON FeatureCollection
-
+    // ── Detect spatial reference ───────────────────────────────
+    const features = Array.isArray(geojson) ? geojson : (geojson.features || []);
     setLoadLabel('BUILDING FEATURES…', `${features.length} county polygons`);
 
     const sampleCoord = flatFirst(features[0]?.geometry?.coordinates);
     const isWebMerc   = sampleCoord && Math.abs(sampleCoord[0]) > 1000;
     const sr = new SpatialReference({ wkid: isWebMerc ? 102100 : 4326 });
 
-    // ── 4. Build client-side graphics ─────────────────────────
+    // ── Build client-side graphics ─────────────────────────────
     const graphics = [];
     let oid = 1;
 
@@ -707,18 +838,15 @@ require([
         if (gt === 'Polygon') {
           geom = new Polygon({ rings: feature.geometry.coordinates, spatialReference: sr });
         } else if (gt === 'MultiPolygon') {
-          // Flatten MultiPolygon [ [ring, ring], [ring] ] → [ring, ring, ring]
           const rings = feature.geometry.coordinates.reduce((acc, poly) => acc.concat(poly), []);
           geom = new Polygon({ rings, spatialReference: sr });
-        } else {
-          return; // skip non-polygon types
-        }
+        } else { return; }
       } catch (e) {
         console.warn(`Geometry error for ${geoName}:`, e);
         return;
       }
 
-      graphics.push(new Graphic({
+      const graphic = new Graphic({
         geometry: geom,
         attributes: {
           OBJECTID: oid++,
@@ -731,12 +859,15 @@ require([
           AG_ACRES: ownership ? ownership.agAcres  : null,
           OWNERS10: ownership ? ownership.owners10 : null
         }
-      }));
+      });
+
+      graphics.push(graphic);
+      countyGraphicStore[geoName] = graphic;  // store for fast geometry lookup
     });
 
-    // ── 5. Create client-side FeatureLayer ────────────────────
+    // ── FeatureLayer (data + renderer) ────────────────────────
     countyLayer = new FeatureLayer({
-      source:       graphics,
+      source: graphics,
       objectIdField: "OBJECTID",
       geometryType: "polygon",
       spatialReference: sr,
@@ -751,13 +882,21 @@ require([
         { name: "AG_ACRES", type: "double"  },
         { name: "OWNERS10", type: "integer" }
       ],
-      popupTemplate: null   // custom detail panel handles interactions
+      popupTemplate: null
     });
 
-    // ── 6. Init MapView ───────────────────────────────────────
+    // ── GraphicsLayers (ordered bottom → top) ─────────────────
+    //    countyLayer → regionLayer → selectLayer → hoverLayer
+    regionLayer = new GraphicsLayer({ listMode: "hide" });
+    selectLayer = new GraphicsLayer({ listMode: "hide" });
+    hoverLayer  = new GraphicsLayer({ listMode: "hide" });
+
+    // ── Map + View ────────────────────────────────────────────
     setLoadLabel('RENDERING MAP…', '');
-    const map = new Map({ basemap: "dark-gray-vector" });
-    map.add(countyLayer);
+    const map = new Map({
+      basemap: "dark-gray-vector",
+      layers: [countyLayer, regionLayer, selectLayer, hoverLayer]
+    });
 
     mapView = new MapView({
       container: "viewDiv",
@@ -777,24 +916,52 @@ require([
       overlay.style.opacity = '0';
       setTimeout(() => overlay.style.display = 'none', 420);
 
-      // ScaleBar + reposition zoom
       mapView.ui.add(new ScaleBar({ view: mapView, unit: "imperial", style: "ruler" }), "bottom-right");
       mapView.ui.move("zoom", "bottom-right");
 
-      // Click → select county
-      mapView.on("click", async event => {
+      // ── Hover: draw outline on county under cursor ──────────
+      mapView.on("pointer-move", async event => {
         const hit = await mapView.hitTest(event, { include: countyLayer });
+
         if (hit.results.length > 0) {
-          selectCounty(hit.results[0].graphic.attributes.NAME);
+          const name = hit.results[0].graphic.attributes.NAME;
+
+          // Only react to in-region counties
+          if (!isInRegion(name)) {
+            mapView.container.style.cursor = 'default';
+            if (hoveredCounty) { clearHoverHighlight(); }
+            return;
+          }
+
+          mapView.container.style.cursor = 'pointer';
+
+          if (name !== hoveredCounty) {
+            hoveredCounty = name;
+            setHoverHighlight(name);
+          }
         } else {
-          closeDetail();
+          mapView.container.style.cursor = 'default';
+          if (hoveredCounty) {
+            clearHoverHighlight();
+          }
         }
       });
 
-      // Hover cursor
-      mapView.on("pointer-move", async event => {
+      // ── Click: select county (re-clickable) ─────────────────
+      mapView.on("click", async event => {
         const hit = await mapView.hitTest(event, { include: countyLayer });
-        mapView.container.style.cursor = hit.results.length > 0 ? 'pointer' : 'default';
+
+        if (hit.results.length > 0) {
+          const name = hit.results[0].graphic.attributes.NAME;
+
+          // Ignore clicks on dimmed out-of-region counties
+          if (!isInRegion(name)) return;
+
+          selectCounty(name);
+        } else {
+          // Click on empty space → deselect
+          closeDetail();
+        }
       });
     });
 
