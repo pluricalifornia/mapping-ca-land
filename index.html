@@ -207,6 +207,7 @@
   <div class="header-controls">
     <button class="metric-btn active" id="btn10" onclick="setMetric('top10')">TOP 10%</button>
     <button class="metric-btn" id="btn1"  onclick="setMetric('top1')">TOP 1%</button>
+    <button class="metric-btn" id="btnParcels" onclick="toggleParcels(this)">PARCELS OFF</button>
   </div>
 </header>
 
@@ -282,6 +283,7 @@ let hoveredCounty     = null;
 
 // ArcGIS objects (set after init)
 let countyLayer       = null;
+let parcelLayer       = null;   // ArcGIS Online parcel service layer
 let hoverLayer        = null;   // GraphicsLayer — hover outline
 let selectLayer       = null;   // GraphicsLayer — selected county outline
 let regionLayer       = null;   // GraphicsLayer — computed region boundary
@@ -472,6 +474,16 @@ function setMetric(m) {
   updateStats();
   applyRenderer();
   if (selectedCounty) showDetail(selectedCounty);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Parcel layer toggle
+// ═══════════════════════════════════════════════════════════════
+function toggleParcels(btn) {
+  if (!parcelLayer) return;
+  parcelLayer.visible = !parcelLayer.visible;
+  btn.textContent = parcelLayer.visible ? 'PARCELS ON' : 'PARCELS OFF';
+  btn.classList.toggle('active', parcelLayer.visible);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -885,8 +897,26 @@ require([
       popupTemplate: null
     });
 
+    // ── FeatureLayer from ArcGIS Online (parcel boundaries) ──────
+    //    minScale ensures it only loads when zoomed in (performance)
+    parcelLayer = new FeatureLayer({
+      url: "https://services.arcgis.com/7CRlmWNEbeCqEJ6a/arcgis/rest/services/CA_Regrid_Parcel_Map_with_No_Null_CDL_Values_WFL1/FeatureServer/0",
+      title: "CA Parcels",
+      visible: false,          // off by default — user toggles on
+      minScale: 150000,        // only renders when zoomed in to ~city level
+      opacity: 0.7,
+      renderer: {
+        type: "simple",
+        symbol: {
+          type: "simple-fill",
+          color: [0, 0, 0, 0],
+          outline: { color: [122, 182, 72, 140], width: 0.6 }  // accent2 green
+        }
+      }
+    });
+
     // ── GraphicsLayers (ordered bottom → top) ─────────────────
-    //    countyLayer → regionLayer → selectLayer → hoverLayer
+    //    parcelLayer → countyLayer → regionLayer → selectLayer → hoverLayer
     regionLayer = new GraphicsLayer({ listMode: "hide" });
     selectLayer = new GraphicsLayer({ listMode: "hide" });
     hoverLayer  = new GraphicsLayer({ listMode: "hide" });
@@ -895,7 +925,7 @@ require([
     setLoadLabel('RENDERING MAP…', '');
     const map = new Map({
       basemap: "dark-gray-vector",
-      layers: [countyLayer, regionLayer, selectLayer, hoverLayer]
+      layers: [parcelLayer, countyLayer, regionLayer, selectLayer, hoverLayer]
     });
 
     mapView = new MapView({
