@@ -1,0 +1,408 @@
+{
+  "Alameda": {
+    "Water_Rating_1": 1403.25,
+    "housing_affordability_index": 47.66,
+    "cdl_majority_category": "Developed/Med Intensity",
+    "parcel_count": 6017,
+    "slug": "alameda"
+  },
+  "Alpine": {
+    "Water_Rating_1": null,
+    "housing_affordability_index": 75.07,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 553,
+    "slug": "alpine"
+  },
+  "Amador": {
+    "Water_Rating_1": 698.65,
+    "housing_affordability_index": 67.05,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 3891,
+    "slug": "amador"
+  },
+  "Butte": {
+    "Water_Rating_1": 3812.95,
+    "housing_affordability_index": 68.1,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 10297,
+    "slug": "butte"
+  },
+  "Calaveras": {
+    "Water_Rating_1": 3413.17,
+    "housing_affordability_index": 69.02,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 7223,
+    "slug": "calaveras"
+  },
+  "Colusa": {
+    "Water_Rating_1": 3495.78,
+    "housing_affordability_index": 72.84,
+    "cdl_majority_category": "Rice",
+    "parcel_count": 5272,
+    "slug": "colusa"
+  },
+  "Contra Costa": {
+    "Water_Rating_1": 1552.39,
+    "housing_affordability_index": 74.18,
+    "cdl_majority_category": "Grassland/Pasture",
+    "parcel_count": 5164,
+    "slug": "contra-costa"
+  },
+  "Del Norte": {
+    "Water_Rating_1": null,
+    "housing_affordability_index": 71.66,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 2335,
+    "slug": "del-norte"
+  },
+  "El Dorado": {
+    "Water_Rating_1": 870.43,
+    "housing_affordability_index": 64.44,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 11339,
+    "slug": "el-dorado"
+  },
+  "Fresno": {
+    "Water_Rating_1": 4093.93,
+    "housing_affordability_index": 89.11,
+    "cdl_majority_category": "Almonds",
+    "parcel_count": 27202,
+    "slug": "fresno"
+  },
+  "Glenn": {
+    "Water_Rating_1": 3626.86,
+    "housing_affordability_index": 57.46,
+    "cdl_majority_category": "Rice",
+    "parcel_count": 5095,
+    "slug": "glenn"
+  },
+  "Humboldt": {
+    "Water_Rating_1": 768.0,
+    "housing_affordability_index": 42.22,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 16422,
+    "slug": "humboldt"
+  },
+  "Imperial": {
+    "Water_Rating_1": 755.85,
+    "housing_affordability_index": 105.39,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 13205,
+    "slug": "imperial"
+  },
+  "Inyo": {
+    "Water_Rating_1": 960.0,
+    "housing_affordability_index": 163.95,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 5098,
+    "slug": "inyo"
+  },
+  "Kern": {
+    "Water_Rating_1": 5204.85,
+    "housing_affordability_index": 81.64,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 41994,
+    "slug": "kern"
+  },
+  "Kings": {
+    "Water_Rating_1": 4498.17,
+    "housing_affordability_index": 66.3,
+    "cdl_majority_category": "Fallow/Idle Cropland",
+    "parcel_count": 7121,
+    "slug": "kings"
+  },
+  "Lake": {
+    "Water_Rating_1": 1754.78,
+    "housing_affordability_index": 58.18,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 6546,
+    "slug": "lake"
+  },
+  "Lassen": {
+    "Water_Rating_1": 914.7,
+    "housing_affordability_index": 73.37,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 18097,
+    "slug": "lassen"
+  },
+  "Los Angeles": {
+    "Water_Rating_1": 820.18,
+    "housing_affordability_index": 58.86,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 41223,
+    "slug": "los-angeles"
+  },
+  "Madera": {
+    "Water_Rating_1": 5510.22,
+    "housing_affordability_index": 65.73,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 9627,
+    "slug": "madera"
+  },
+  "Marin": {
+    "Water_Rating_1": 1642.6,
+    "housing_affordability_index": 36.54,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 1836,
+    "slug": "marin"
+  },
+  "Mariposa": {
+    "Water_Rating_1": 522.0,
+    "housing_affordability_index": 61.03,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 4197,
+    "slug": "mariposa"
+  },
+  "Mendocino": {
+    "Water_Rating_1": 547.26,
+    "housing_affordability_index": 44.88,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 21743,
+    "slug": "mendocino"
+  },
+  "Merced": {
+    "Water_Rating_1": 4185.53,
+    "housing_affordability_index": 49.05,
+    "cdl_majority_category": "Almonds",
+    "parcel_count": 12301,
+    "slug": "merced"
+  },
+  "Modoc": {
+    "Water_Rating_1": 944.71,
+    "housing_affordability_index": 74.73,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 8918,
+    "slug": "modoc"
+  },
+  "Mono": {
+    "Water_Rating_1": 850.0,
+    "housing_affordability_index": 73.83,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 4882,
+    "slug": "mono"
+  },
+  "Monterey": {
+    "Water_Rating_1": 789.41,
+    "housing_affordability_index": 48.5,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 11513,
+    "slug": "monterey"
+  },
+  "Napa": {
+    "Water_Rating_1": 547.96,
+    "housing_affordability_index": 36.42,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 5391,
+    "slug": "napa"
+  },
+  "Nevada": {
+    "Water_Rating_1": 522.0,
+    "housing_affordability_index": 59.31,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 7605,
+    "slug": "nevada"
+  },
+  "Orange": {
+    "Water_Rating_1": 1087.0,
+    "housing_affordability_index": 87.61,
+    "cdl_majority_category": "Developed/Med Intensity",
+    "parcel_count": 33250,
+    "slug": "orange"
+  },
+  "Placer": {
+    "Water_Rating_1": 2536.02,
+    "housing_affordability_index": 51.06,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 8326,
+    "slug": "placer"
+  },
+  "Plumas": {
+    "Water_Rating_1": 893.54,
+    "housing_affordability_index": 72.73,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 3691,
+    "slug": "plumas"
+  },
+  "Riverside": {
+    "Water_Rating_1": 1137.36,
+    "housing_affordability_index": 70.09,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 33233,
+    "slug": "riverside"
+  },
+  "Sacramento": {
+    "Water_Rating_1": 1350.96,
+    "housing_affordability_index": 71.93,
+    "cdl_majority_category": "Grassland/Pasture",
+    "parcel_count": 5860,
+    "slug": "sacramento"
+  },
+  "San Benito": {
+    "Water_Rating_1": 2331.7,
+    "housing_affordability_index": 43.77,
+    "cdl_majority_category": "Grassland/Pasture",
+    "parcel_count": 4631,
+    "slug": "san-benito"
+  },
+  "San Bernardino": {
+    "Water_Rating_1": 3238.08,
+    "housing_affordability_index": 138.07,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 52996,
+    "slug": "san-bernardino"
+  },
+  "San Diego": {
+    "Water_Rating_1": 1081.24,
+    "housing_affordability_index": 81.29,
+    "cdl_majority_category": "Developed/Med Intensity",
+    "parcel_count": 64335,
+    "slug": "san-diego"
+  },
+  "San Francisco": {
+    "Water_Rating_1": null,
+    "housing_affordability_index": 41.06,
+    "cdl_majority_category": "Developed/High Intensity",
+    "parcel_count": 144,
+    "slug": "san-francisco"
+  },
+  "San Joaquin": {
+    "Water_Rating_1": 3062.34,
+    "housing_affordability_index": 67.74,
+    "cdl_majority_category": "Almonds",
+    "parcel_count": 11492,
+    "slug": "san-joaquin"
+  },
+  "San Luis Obispo": {
+    "Water_Rating_1": 1357.04,
+    "housing_affordability_index": 43.81,
+    "cdl_majority_category": "Grassland/Pasture",
+    "parcel_count": 13141,
+    "slug": "san-luis-obispo"
+  },
+  "San Mateo": {
+    "Water_Rating_1": null,
+    "housing_affordability_index": 42.99,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 2295,
+    "slug": "san-mateo"
+  },
+  "Santa Barbara": {
+    "Water_Rating_1": 1569.01,
+    "housing_affordability_index": 63.21,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 6934,
+    "slug": "santa-barbara"
+  },
+  "Santa Clara": {
+    "Water_Rating_1": 1420.93,
+    "housing_affordability_index": 40.18,
+    "cdl_majority_category": "Mixed Forest",
+    "parcel_count": 6218,
+    "slug": "santa-clara"
+  },
+  "Santa Cruz": {
+    "Water_Rating_1": 603.78,
+    "housing_affordability_index": 45.11,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 4041,
+    "slug": "santa-cruz"
+  },
+  "Shasta": {
+    "Water_Rating_1": 2201.16,
+    "housing_affordability_index": 69.59,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 14738,
+    "slug": "shasta"
+  },
+  "Sierra": {
+    "Water_Rating_1": 988.83,
+    "housing_affordability_index": 68.3,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 2192,
+    "slug": "sierra"
+  },
+  "Siskiyou": {
+    "Water_Rating_1": 917.89,
+    "housing_affordability_index": 67.42,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 16632,
+    "slug": "siskiyou"
+  },
+  "Solano": {
+    "Water_Rating_1": 2873.76,
+    "housing_affordability_index": 56.86,
+    "cdl_majority_category": "Grassland/Pasture",
+    "parcel_count": 4960,
+    "slug": "solano"
+  },
+  "Sonoma": {
+    "Water_Rating_1": 607.26,
+    "housing_affordability_index": 40.58,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 11071,
+    "slug": "sonoma"
+  },
+  "Stanislaus": {
+    "Water_Rating_1": 4912.03,
+    "housing_affordability_index": 57.15,
+    "cdl_majority_category": "Almonds",
+    "parcel_count": 10495,
+    "slug": "stanislaus"
+  },
+  "Sutter": {
+    "Water_Rating_1": 2889.8,
+    "housing_affordability_index": 67.48,
+    "cdl_majority_category": "Rice",
+    "parcel_count": 4633,
+    "slug": "sutter"
+  },
+  "Tehama": {
+    "Water_Rating_1": 4446.42,
+    "housing_affordability_index": 62.36,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 11287,
+    "slug": "tehama"
+  },
+  "Trinity": {
+    "Water_Rating_1": 522.0,
+    "housing_affordability_index": 48.43,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 7309,
+    "slug": "trinity"
+  },
+  "Tulare": {
+    "Water_Rating_1": 4274.6,
+    "housing_affordability_index": 81.09,
+    "cdl_majority_category": "Citrus",
+    "parcel_count": 36598,
+    "slug": "tulare"
+  },
+  "Tuolumne": {
+    "Water_Rating_1": 695.0,
+    "housing_affordability_index": 56.87,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 6396,
+    "slug": "tuolumne"
+  },
+  "Ventura": {
+    "Water_Rating_1": 1252.91,
+    "housing_affordability_index": 52.16,
+    "cdl_majority_category": "Shrubland",
+    "parcel_count": 7578,
+    "slug": "ventura"
+  },
+  "Yolo": {
+    "Water_Rating_1": 2774.66,
+    "housing_affordability_index": 56.59,
+    "cdl_majority_category": "Grassland/Pasture",
+    "parcel_count": 5270,
+    "slug": "yolo"
+  },
+  "Yuba": {
+    "Water_Rating_1": 2796.65,
+    "housing_affordability_index": 68.79,
+    "cdl_majority_category": "Evergreen Forest",
+    "parcel_count": 4678,
+    "slug": "yuba"
+  }
+}
