@@ -106,6 +106,16 @@
     .legend-chip { display: flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); }
     .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 
+    .cdl-subfilter { display: none; margin-bottom: 8px; }
+    .cdl-subfilter.visible { display: flex; gap: 4px; flex-wrap: wrap; }
+    .cdl-sub-btn {
+      padding: 3px 8px; border: 1px solid var(--border); border-radius: 12px;
+      font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.04em;
+      color: var(--text-dim); background: transparent; cursor: pointer; transition: all 0.18s;
+    }
+    .cdl-sub-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+    .cdl-sub-btn.active { background: var(--accent2); border-color: var(--accent2); color: #0d0f0a; font-weight: 600; }
+
     .search-wrap { padding: 10px 16px; border-bottom: 1px solid var(--border); }
     .search-input {
       width: 100%; background: var(--panel2); border: 1px solid var(--border);
@@ -234,6 +244,11 @@
 
     <div class="sidebar-section">
       <div class="section-label" id="legendLabel">Ownership Concentration (Top 10%)</div>
+      <div class="cdl-subfilter" id="cdlSubFilter">
+        <button class="cdl-sub-btn active" onclick="setCdlFilter('all_ag',this)">All Ag</button>
+        <button class="cdl-sub-btn" onclick="setCdlFilter('crops',this)">Crops Only</button>
+        <button class="cdl-sub-btn" onclick="setCdlFilter('pasture',this)">Pasture / Grass</button>
+      </div>
       <div id="legendContainer">
         <div class="legend-bar">
           <div class="legend-gradient" style="background:linear-gradient(to right, #2c4a0e, #5a8a1c, #a8c840, #c8a84b, #e07b3f, #c43c1c)"></div>
@@ -293,6 +308,32 @@ let parcelCache         = {};     // slug → GeoJSON data (cache to avoid re-fe
 let waterMin = Infinity, waterMax = -Infinity;
 let housingMin = Infinity, housingMax = -Infinity;
 let cdlCategories = [], cdlColorMap = {};
+let cdlSubFilter = 'all_ag'; // 'all_ag', 'crops', 'pasture'
+
+// Non-agricultural CDL categories to exclude everywhere
+const EXCLUDED_CDL = new Set([
+  "Forest","Shrubland","Barren","Clouds/No Data","Developed","Water",
+  "Wetlands","Nonag/Undefined","Open Water","Perennial Ice/Snow",
+  "Developed/Open Space","Developed/Low Intensity","Developed/Med Intensity",
+  "Developed/High Intensity","Aquaculture","Deciduous Forest","Evergreen Forest",
+  "Mixed Forest","Woody Wetlands","Herbaceous Wetlands"
+]);
+
+// Pasture/grass categories (agricultural but toggleable)
+const PASTURE_CDL = new Set([
+  "Fallow/Idle Cropland","Pasture/Grass","Grassland/Pasture"
+]);
+
+function isAgCdl(cat) { return cat && !EXCLUDED_CDL.has(cat); }
+function isCropCdl(cat) { return isAgCdl(cat) && !PASTURE_CDL.has(cat); }
+function isPastureCdl(cat) { return isAgCdl(cat) && PASTURE_CDL.has(cat); }
+
+function cdlPassesFilter(cat) {
+  if (!isAgCdl(cat)) return false;
+  if (cdlSubFilter === 'crops') return isCropCdl(cat);
+  if (cdlSubFilter === 'pasture') return isPastureCdl(cat);
+  return true; // 'all_ag'
+}
 
 // Parcel-level ranges (computed from loaded parcels)
 let parcelWaterMin = Infinity, parcelWaterMax = -Infinity;
@@ -322,7 +363,7 @@ function parseCSV(text) {
     result[name.toLowerCase()] = {
       name, region, top10: top10s ? parseFloat(top10s)/100 : null, acres10,
       top1: top1s ? parseFloat(top1s)/100 : null, acres1, agAcres, owners10, note,
-      waterRating: null, housingIndex: null, cdlCategory: '', countySlug: ''
+      waterRating: null, housingIndex: null, cdlCategory: '', cdlCrop: '', cdlPasture: '', countySlug: ''
     };
   }
   return result;
@@ -349,23 +390,30 @@ function mergeGdbAttributes(gdbData) {
     const wr = attrs.Water_Rating_1 != null ? parseFloat(attrs.Water_Rating_1) : NaN;
     const hi = attrs.housing_affordability_index != null ? parseFloat(attrs.housing_affordability_index) : NaN;
     const cdl = (attrs.cdl_majority_category || '').trim();
+    const cdlCrop = (attrs.cdl_majority_crop || '').trim();
+    const cdlPasture = (attrs.cdl_majority_pasture || '').trim();
     const slug = (attrs.slug || '').trim();
 
     if (!isNaN(wr)) { waterMin = Math.min(waterMin, wr); waterMax = Math.max(waterMax, wr); }
     if (!isNaN(hi)) { housingMin = Math.min(housingMin, hi); housingMax = Math.max(housingMax, hi); }
-    if (cdl) allCdlCats.add(cdl);
+    // Only include agricultural categories
+    if (cdl && isAgCdl(cdl)) allCdlCats.add(cdl);
+    if (cdlCrop && isAgCdl(cdlCrop)) allCdlCats.add(cdlCrop);
+    if (cdlPasture && isAgCdl(cdlPasture)) allCdlCats.add(cdlPasture);
 
     if (ownershipMap[key]) {
       ownershipMap[key].waterRating = isNaN(wr) ? null : wr;
       ownershipMap[key].housingIndex = isNaN(hi) ? null : hi;
       ownershipMap[key].cdlCategory = cdl;
+      ownershipMap[key].cdlCrop = cdlCrop;
+      ownershipMap[key].cdlPasture = cdlPasture;
       ownershipMap[key].countySlug = slug;
     } else {
       ownershipMap[key] = {
         name: name.trim(), region: '', top10: null, acres10: 0, top1: null, acres1: 0,
         agAcres: 0, owners10: 0, note: '',
         waterRating: isNaN(wr) ? null : wr, housingIndex: isNaN(hi) ? null : hi,
-        cdlCategory: cdl, countySlug: slug
+        cdlCategory: cdl, cdlCrop: cdlCrop, cdlPasture: cdlPasture, countySlug: slug
       };
     }
   });
@@ -384,7 +432,11 @@ function metricVal(d) {
   switch (currentMetric) {
     case 'top10': return d.top10; case 'top1': return d.top1;
     case 'water': return d.waterRating; case 'housing': return d.housingIndex;
-    case 'cdl': return d.cdlCategory || null; default: return null;
+    case 'cdl':
+      if (cdlSubFilter === 'crops') return d.cdlCrop || null;
+      if (cdlSubFilter === 'pasture') return d.cdlPasture || null;
+      return d.cdlCategory || null;
+    default: return null;
   }
 }
 
@@ -447,11 +499,17 @@ const CDL_PALETTE = [
 ];
 
 function buildCdlColors(cats) {
-  cdlCategories = cats.sort();
+  // Only agricultural categories
+  cdlCategories = cats.filter(c => isAgCdl(c)).sort();
   cdlColorMap = {};
   cdlCategories.forEach((c,i) => { cdlColorMap[c] = CDL_PALETTE[i % CDL_PALETTE.length]; });
 }
 function getCdlColor(c) { return cdlColorMap[c] || [60,65,50]; }
+
+// Get filtered CDL categories based on current sub-filter
+function filteredCdlCategories() {
+  return cdlCategories.filter(c => cdlPassesFilter(c));
+}
 
 function valueToColor(v) {
   switch (currentMetric) {
@@ -515,7 +573,11 @@ function metricLabel() {
   switch (currentMetric) {
     case 'top10': return 'Top 10% Ownership Share'; case 'top1': return 'Top 1% Ownership Share';
     case 'water': return 'Water Rating'; case 'housing': return 'Housing Affordability Index';
-    case 'cdl': return 'Majority Crop / Land Use'; default: return '';
+    case 'cdl':
+      if (cdlSubFilter === 'crops') return 'Majority Crop';
+      if (cdlSubFilter === 'pasture') return 'Majority Pasture / Grass';
+      return 'Majority Agricultural Land Use';
+    default: return '';
   }
 }
 
@@ -556,9 +618,11 @@ function updateLegend() {
   const container = document.getElementById('legendContainer');
   const label = document.getElementById('legendLabel');
   if (currentMetric === 'cdl') {
-    label.textContent = 'Majority Crop / Land Use (CDL)';
+    const sublabel = cdlSubFilter === 'crops' ? 'Crops Only' : cdlSubFilter === 'pasture' ? 'Pasture / Grass' : 'All Agricultural';
+    label.textContent = `Majority Land Use — ${sublabel}`;
+    const cats = filteredCdlCategories();
     container.innerHTML = '<div class="legend-categorical">' +
-      cdlCategories.map(c => { const [r,g,b]=getCdlColor(c); return `<div class="legend-chip"><div class="legend-dot" style="background:rgb(${r},${g},${b})"></div>${c}</div>`; }).join('') + '</div>';
+      cats.map(c => { const [r,g,b]=getCdlColor(c); return `<div class="legend-chip"><div class="legend-dot" style="background:rgb(${r},${g},${b})"></div>${c}</div>`; }).join('') + '</div>';
     return;
   }
   let css, labels;
@@ -584,13 +648,13 @@ function updateLegend() {
 // ═══════════════════════════════════════════════════════════════
 function renderList(search='') {
   const entries = filteredEntries(search);
-  if (isCategorical()) entries.sort((a,b)=>(a.cdlCategory||'').localeCompare(b.cdlCategory||''));
+  if (isCategorical()) entries.sort((a,b)=>(metricVal(a)||'').localeCompare(metricVal(b)||''));
   else entries.sort((a,b)=>(metricNorm(b)||0)-(metricNorm(a)||0));
 
   document.getElementById('countyList').innerHTML = entries.map(d => {
     const isSel = d.name === selectedCounty;
     if (isCategorical()) {
-      const cat = d.cdlCategory||'—'; const [r,g,b]=getCdlColor(cat);
+      const cat = metricVal(d)||'—'; const [r,g,b]=getCdlColor(cat);
       return `<div class="county-item${isSel?' selected':''}" onclick="selectCounty('${d.name.replace(/'/g,"\\'")}')">
         <div style="width:3px;height:32px;border-radius:2px;background:rgb(${r},${g},${b});flex-shrink:0"></div>
         <div class="bar-wrap"><div class="name">${d.name}</div><div class="bar-row">
@@ -618,8 +682,21 @@ function setMetric(m) {
   const btnMap={top10:'btn10',top1:'btn1',water:'btnWater',housing:'btnHousing',cdl:'btnCdl'};
   const btn=document.getElementById(btnMap[m]);
   if (btn) { btn.classList.add('active'); if(m==='water')btn.classList.add('water'); if(m==='housing')btn.classList.add('housing'); if(m==='cdl')btn.classList.add('cdl'); }
+
+  // Show/hide CDL sub-filter
+  document.getElementById('cdlSubFilter').classList.toggle('visible', m === 'cdl');
+
   updateLegend(); renderList(document.getElementById('searchInput').value);
   updateStats(); applyRenderer();
+  if (selectedCounty) { showDetail(selectedCounty); applyParcelRenderer(); }
+}
+
+function setCdlFilter(filter, el) {
+  cdlSubFilter = filter;
+  document.querySelectorAll('.cdl-sub-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  updateLegend(); renderList(document.getElementById('searchInput').value);
+  applyRenderer();
   if (selectedCounty) { showDetail(selectedCounty); applyParcelRenderer(); }
 }
 
@@ -753,8 +830,11 @@ async function loadParcels(countyName) {
     });
 
     loadedParcelCounty = slug;
-    mapView.map.add(parcelLayer, mapView.map.layers.length - 3); // below highlight layers
+    // Add parcel layer right above county layer, below highlight layers
+    const countyIdx = mapView.map.layers.indexOf(countyLayer);
+    mapView.map.add(parcelLayer, countyIdx + 1);
     applyParcelRenderer();
+    applyRenderer(); // re-render county to make selected county transparent
     hideParcelStatus();
 
   } catch(err) {
@@ -768,14 +848,16 @@ function applyParcelRenderer() {
   if (!parcelLayer) return;
 
   if (currentMetric === 'cdl') {
-    // Categorical renderer
-    const infos = cdlCategories.map(cat => {
+    // Color only categories that pass the current sub-filter
+    const activeCats = filteredCdlCategories();
+    const infos = activeCats.map(cat => {
       const [r,g,b] = getCdlColor(cat);
       return { value: cat, symbol: { type: "simple-fill", color: [r,g,b,180], outline: { color: [r,g,b,220], width: 0.4 } } };
     });
     parcelLayer.renderer = {
       type: "unique-value", field: "cdl_majority_category",
-      defaultSymbol: { type: "simple-fill", color: [60,65,50,120], outline: { color: [80,85,70,160], width: 0.3 } },
+      // Non-matching parcels (non-ag or filtered out) get dimmed
+      defaultSymbol: { type: "simple-fill", color: [30,32,26,80], outline: { color: [50,55,40,80], width: 0.2 } },
       uniqueValueInfos: infos
     };
   } else if (currentMetric === 'water') {
@@ -816,6 +898,7 @@ function clearParcels() {
   }
   loadedParcelCounty = null;
   hideParcelStatus();
+  applyRenderer(); // restore county fill opacity
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -839,11 +922,15 @@ function applyRenderer() {
   const infos = Object.values(ownershipMap).map(d => {
     const inR = isInRegion(d.name);
     const mv = metricVal(d); const [r,g,b] = valueToColor(mv);
+
+    // Make selected county nearly transparent when parcels are visible
+    const hasParcels = parcelsVisible && parcelLayer && d.name === selectedCounty;
+
     return {
       value: d.name,
       symbol: { type: "simple-fill",
-        color: inR ? [r,g,b,215] : [18,22,14,200],
-        outline: inR ? { color:[12,16,8,160], width:0.5 } : { color:[25,30,18,60], width:0.3 }
+        color: hasParcels ? [r,g,b,30] : (inR ? [r,g,b,215] : [18,22,14,200]),
+        outline: hasParcels ? { color:[255,255,255,80], width:1.5 } : (inR ? { color:[12,16,8,160], width:0.5 } : { color:[25,30,18,60], width:0.3 })
       }
     };
   });
@@ -913,6 +1000,8 @@ function showDetail(name) {
   const [rw,gw,bw]=d.waterRating!=null?waterColor(d.waterRating):[60,65,50];
   const [rh,gh,bh]=d.housingIndex!=null?housingColor(d.housingIndex):[60,65,50];
   const [rc,gc,bc]=getCdlColor(d.cdlCategory);
+  const [rcc,gcc,bcc]=getCdlColor(d.cdlCrop);
+  const [rcp,gcp,bcp]=getCdlColor(d.cdlPasture);
   const mv=metricVal(d),norm=metricNorm(d);
   const [rm,gm,bm]=isCategorical()?getCdlColor(mv):valueToColor(mv);
   const mainBar=norm!=null?(norm*100).toFixed(1):0;
@@ -948,7 +1037,9 @@ function showDetail(name) {
       <div class="comp-row"><div class="comp-lbl">Housing Affordability</div><div class="comp-val" style="color:rgb(${rh},${gh},${bh})">${fmtScore(d.housingIndex)}</div></div>
       ${d.housingIndex!=null?`<div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:2px 0 8px">
         <div style="height:100%;width:${housingMax>housingMin?((d.housingIndex-housingMin)/(housingMax-housingMin)*100).toFixed(1):50}%;background:rgb(${rh},${gh},${bh});border-radius:2px"></div></div>`:''}
-      <div class="comp-row"><div class="comp-lbl">Majority Land Use</div><div class="comp-val" style="color:rgb(${rc},${gc},${bc})">${d.cdlCategory||'—'}</div></div>
+      <div class="comp-row"><div class="comp-lbl">Top Ag Land Use</div><div class="comp-val" style="color:rgb(${rc},${gc},${bc})">${d.cdlCategory||'—'}</div></div>
+      <div class="comp-row"><div class="comp-lbl">Top Crop</div><div class="comp-val" style="color:rgb(${rcc},${gcc},${bcc})">${d.cdlCrop||'—'}</div></div>
+      <div class="comp-row"><div class="comp-lbl">Top Pasture/Grass</div><div class="comp-val" style="color:rgb(${rcp},${gcp},${bcp})">${d.cdlPasture||'—'}</div></div>
     </div>
     ${d.note?`<div class="note-box">📋 ${d.note}</div>`:''}`;
 }
