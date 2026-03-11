@@ -300,9 +300,10 @@ let hoveredCounty      = null;
 let parcelsVisible     = false;
 
 // Parcel state
-let parcelLayer         = null;   // client-side FeatureLayer for current county's parcels
-let loadedParcelCounty  = null;   // which county's parcels are currently loaded
-let parcelCache         = {};     // slug → GeoJSON data (cache to avoid re-fetching)
+let parcelLayer         = null;
+let loadedParcelCounty  = null;
+let parcelCache         = {};
+let parcelBlobUrl       = null;   // stored so we can revoke on clear
 
 // Dynamic ranges
 let waterMin = Infinity, waterMax = -Infinity;
@@ -344,6 +345,7 @@ let countyLayer = null;
 let hoverLayer = null, selectLayer = null, regionLayer = null;
 let mapView = null, geoEngine = null, GraphicCtor = null;
 let PolygonCtor = null, SpatialReferenceCtor = null, FeatureLayerCtor = null;
+let GeoJSONLayerCtor = null;
 
 // ═══════════════════════════════════════════════════════════════
 //  CSV parser
@@ -617,15 +619,19 @@ function updateStats() {
 function updateLegend() {
   const container = document.getElementById('legendContainer');
   const label = document.getElementById('legendLabel');
+  const parcelNote = (parcelsVisible && parcelLayer && selectedCounty)
+    ? `<div style="margin-top:8px;padding:6px 8px;background:rgba(75,160,200,0.08);border:1px solid rgba(75,160,200,0.2);border-radius:3px;font-family:var(--font-mono);font-size:9px;color:var(--accent4);letter-spacing:0.04em">▪ PARCEL COLORS ACTIVE — per-parcel values shown on map</div>`
+    : '';
+
   if (currentMetric === 'cdl') {
     const sublabel = cdlSubFilter === 'crops' ? 'Crops Only' : cdlSubFilter === 'pasture' ? 'Pasture / Grass' : 'All Agricultural';
     label.textContent = `Majority Land Use — ${sublabel}`;
     const cats = filteredCdlCategories();
     container.innerHTML = '<div class="legend-categorical">' +
-      cats.map(c => { const [r,g,b]=getCdlColor(c); return `<div class="legend-chip"><div class="legend-dot" style="background:rgb(${r},${g},${b})"></div>${c}</div>`; }).join('') + '</div>';
+      cats.map(c => { const [r,g,b]=getCdlColor(c); return `<div class="legend-chip"><div class="legend-dot" style="background:rgb(${r},${g},${b})"></div>${c}</div>`; }).join('') + '</div>' + parcelNote;
     return;
   }
-  let css, labels;
+  let css, labels, parcelRange = '';
   switch (currentMetric) {
     case 'top10': case 'top1':
       label.textContent = currentMetric==='top10'?'Ownership Concentration (Top 10%)':'Ownership Concentration (Top 1%)';
@@ -634,13 +640,17 @@ function updateLegend() {
     case 'water':
       label.textContent='Water Rating';
       css='linear-gradient(to right,#1e8cc8,#3270b4,#64a078,#c8a03c,#c43c1c)';
-      labels=`<span>${fmtScore(waterMin,0)}</span><span>${fmtScore((waterMin+waterMax)/2,0)}</span><span>${fmtScore(waterMax,0)}</span>`; break;
+      labels=`<span>${fmtScore(waterMin,0)}</span><span>${fmtScore((waterMin+waterMax)/2,0)}</span><span>${fmtScore(waterMax,0)}</span>`;
+      if (parcelsVisible && parcelLayer) parcelRange = `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-dim);margin-top:4px">Parcel range: ${fmtScore(parcelWaterMin,0)} – ${fmtScore(parcelWaterMax,0)}</div>`;
+      break;
     case 'housing':
       label.textContent='Housing Affordability Index';
       css='linear-gradient(to right,#48aa3c,#78b464,#b4a050,#a064b4,#7832b4)';
-      labels=`<span>${fmtScore(housingMin,0)}</span><span>${fmtScore((housingMin+housingMax)/2,0)}</span><span>${fmtScore(housingMax,0)}</span>`; break;
+      labels=`<span>${fmtScore(housingMin,0)}</span><span>${fmtScore((housingMin+housingMax)/2,0)}</span><span>${fmtScore(housingMax,0)}</span>`;
+      if (parcelsVisible && parcelLayer) parcelRange = `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-dim);margin-top:4px">Parcel range: ${fmtScore(parcelHousingMin,0)} – ${fmtScore(parcelHousingMax,0)}</div>`;
+      break;
   }
-  container.innerHTML = `<div class="legend-bar"><div class="legend-gradient" style="background:${css}"></div><div class="legend-labels">${labels}</div></div>`;
+  container.innerHTML = `<div class="legend-bar"><div class="legend-gradient" style="background:${css}"></div><div class="legend-labels">${labels}</div></div>${parcelRange}${parcelNote}`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -737,6 +747,7 @@ async function loadParcels(countyName) {
   // Already loaded this county?
   if (loadedParcelCounty === slug && parcelLayer) {
     applyParcelRenderer();
+    applyRenderer();
     return;
   }
 
@@ -746,79 +757,43 @@ async function loadParcels(countyName) {
   showParcelStatus(`LOADING PARCELS — ${countyName.toUpperCase()}…`);
 
   try {
+    const url = `${PARCELS_DIR}/${slug}.geojson`;
+
+    // Fetch JSON to compute ranges, then create Blob URL for GeoJSONLayer
     let geojson;
     if (parcelCache[slug]) {
       geojson = parcelCache[slug];
     } else {
-      const url = `${PARCELS_DIR}/${slug}.geojson`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${slug}.geojson`);
       geojson = await resp.json();
       parcelCache[slug] = geojson;
     }
 
-    const features = geojson.features || [];
-    showParcelStatus(`BUILDING ${features.length.toLocaleString()} PARCELS…`);
-
-    // Compute parcel-level ranges for this county
+    // Compute parcel-level ranges
     parcelWaterMin = Infinity; parcelWaterMax = -Infinity;
     parcelHousingMin = Infinity; parcelHousingMax = -Infinity;
 
-    const sr = new SpatialReferenceCtor({ wkid: 4326 });
-    const graphics = [];
-    let oid = 1;
-
-    features.forEach(f => {
-      if (!f.geometry) return;
+    (geojson.features || []).forEach(f => {
       const p = f.properties || {};
-
       const wr = parseFloat(p.Water_Rating_1);
       const hi = parseFloat(p.housing_affordability_index);
       if (!isNaN(wr)) { parcelWaterMin = Math.min(parcelWaterMin, wr); parcelWaterMax = Math.max(parcelWaterMax, wr); }
       if (!isNaN(hi)) { parcelHousingMin = Math.min(parcelHousingMin, hi); parcelHousingMax = Math.max(parcelHousingMax, hi); }
-
-      let geom;
-      try {
-        const gt = f.geometry.type;
-        if (gt === 'Polygon') {
-          geom = new PolygonCtor({ rings: f.geometry.coordinates, spatialReference: sr });
-        } else if (gt === 'MultiPolygon') {
-          const rings = f.geometry.coordinates.reduce((a, poly) => a.concat(poly), []);
-          geom = new PolygonCtor({ rings, spatialReference: sr });
-        } else return;
-      } catch(e) { return; }
-
-      const clr = parcelColor(p);
-
-      graphics.push(new GraphicCtor({
-        geometry: geom,
-        attributes: {
-          OID: oid++,
-          parcelnumb: p.parcelnumb || '',
-          county: p.county || '',
-          Water_Rating_1: isNaN(wr) ? null : wr,
-          housing_affordability_index: isNaN(hi) ? null : hi,
-          cdl_majority_category: (p.cdl_majority_category || '').trim()
-        }
-      }));
     });
 
     if (parcelWaterMin === Infinity) { parcelWaterMin = 0; parcelWaterMax = 1; }
     if (parcelHousingMin === Infinity) { parcelHousingMin = 0; parcelHousingMax = 1; }
 
-    parcelLayer = new FeatureLayerCtor({
-      source: graphics,
-      objectIdField: "OID",
-      geometryType: "polygon",
-      spatialReference: sr,
-      fields: [
-        { name: "OID", type: "oid" },
-        { name: "parcelnumb", type: "string" },
-        { name: "county", type: "string" },
-        { name: "Water_Rating_1", type: "double" },
-        { name: "housing_affordability_index", type: "double" },
-        { name: "cdl_majority_category", type: "string" }
-      ],
+    showParcelStatus(`BUILDING ${(geojson.features||[]).length.toLocaleString()} PARCELS…`);
+
+    // Create a Blob URL for GeoJSONLayer
+    const blob = new Blob([JSON.stringify(geojson)], { type: 'application/json' });
+    parcelBlobUrl = URL.createObjectURL(blob);
+
+    parcelLayer = new GeoJSONLayerCtor({
+      url: parcelBlobUrl,
+      title: `Parcels — ${countyName}`,
       popupTemplate: {
         title: "Parcel {parcelnumb}",
         content: [{ type: "fields", fieldInfos: [
@@ -830,11 +805,18 @@ async function loadParcels(countyName) {
     });
 
     loadedParcelCounty = slug;
-    // Add parcel layer right above county layer, below highlight layers
-    const countyIdx = mapView.map.layers.indexOf(countyLayer);
-    mapView.map.add(parcelLayer, countyIdx + 1);
+
+    // Add parcel layer and force it above county but below highlight layers
+    mapView.map.add(parcelLayer);
+    await parcelLayer.when();
+
+    // Reorder: parcels above county, below region/select/hover
+    mapView.map.reorder(parcelLayer, mapView.map.layers.indexOf(regionLayer));
+
     applyParcelRenderer();
-    applyRenderer(); // re-render county to make selected county transparent
+    applyRenderer();
+    setSelectHighlight(selectedCounty); // refresh with transparent fill
+    updateLegend();
     hideParcelStatus();
 
   } catch(err) {
@@ -896,9 +878,14 @@ function clearParcels() {
     mapView.map.remove(parcelLayer);
     parcelLayer = null;
   }
+  if (parcelBlobUrl) {
+    URL.revokeObjectURL(parcelBlobUrl);
+    parcelBlobUrl = null;
+  }
   loadedParcelCounty = null;
   hideParcelStatus();
-  applyRenderer(); // restore county fill opacity
+  applyRenderer();
+  updateLegend();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -923,14 +910,14 @@ function applyRenderer() {
     const inR = isInRegion(d.name);
     const mv = metricVal(d); const [r,g,b] = valueToColor(mv);
 
-    // Make selected county nearly transparent when parcels are visible
+    // Make selected county fully transparent when parcels are visible
     const hasParcels = parcelsVisible && parcelLayer && d.name === selectedCounty;
 
     return {
       value: d.name,
       symbol: { type: "simple-fill",
-        color: hasParcels ? [r,g,b,30] : (inR ? [r,g,b,215] : [18,22,14,200]),
-        outline: hasParcels ? { color:[255,255,255,80], width:1.5 } : (inR ? { color:[12,16,8,160], width:0.5 } : { color:[25,30,18,60], width:0.3 })
+        color: hasParcels ? [0,0,0,0] : (inR ? [r,g,b,215] : [18,22,14,200]),
+        outline: hasParcels ? { color:[255,255,255,120], width:2 } : (inR ? { color:[12,16,8,160], width:0.5 } : { color:[25,30,18,60], width:0.3 })
       }
     };
   });
@@ -955,7 +942,8 @@ function clearHoverHighlight() { if(hoverLayer) hoverLayer.removeAll(); hoveredC
 function setSelectHighlight(n) {
   if(!selectLayer||!GraphicCtor) return; selectLayer.removeAll(); if(!n) return;
   const g=countyGraphicStore[n]; if(!g) return;
-  selectLayer.add(new GraphicCtor({ geometry:g.geometry, symbol:{type:"simple-fill",color:[255,255,255,18],outline:{color:[255,255,255,240],width:2.5}} }));
+  const fillAlpha = (parcelsVisible) ? 0 : 18;
+  selectLayer.add(new GraphicCtor({ geometry:g.geometry, symbol:{type:"simple-fill",color:[255,255,255,fillAlpha],outline:{color:[255,255,255,240],width:2.5}} }));
 }
 function clearSelectHighlight() { if(selectLayer) selectLayer.removeAll(); }
 
@@ -1058,11 +1046,12 @@ function flatFirst(c) { if(!c)return null; if(typeof c[0]==='number')return c; r
 require([
   "esri/Map","esri/views/MapView","esri/layers/FeatureLayer","esri/layers/GraphicsLayer",
   "esri/Graphic","esri/geometry/Polygon","esri/geometry/SpatialReference",
-  "esri/geometry/geometryEngine","esri/widgets/ScaleBar"
-], function(Map, MapView, FeatureLayer, GraphicsLayer, Graphic, Polygon, SpatialReference, geometryEngine, ScaleBar) {
+  "esri/geometry/geometryEngine","esri/widgets/ScaleBar","esri/layers/GeoJSONLayer"
+], function(Map, MapView, FeatureLayer, GraphicsLayer, Graphic, Polygon, SpatialReference, geometryEngine, ScaleBar, GeoJSONLayer) {
 
   geoEngine = geometryEngine; GraphicCtor = Graphic;
   PolygonCtor = Polygon; SpatialReferenceCtor = SpatialReference; FeatureLayerCtor = FeatureLayer;
+  GeoJSONLayerCtor = GeoJSONLayer;
 
   setLoadLabel('FETCHING DATA…','3 data sources');
 
