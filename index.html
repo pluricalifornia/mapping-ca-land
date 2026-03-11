@@ -68,6 +68,18 @@
     .metric-btn.active.water { background: var(--accent4); border-color: var(--accent4); }
     .metric-btn.active.housing { background: var(--accent5); border-color: var(--accent5); }
     .metric-btn.active.cdl { background: var(--accent2); border-color: var(--accent2); }
+    .metric-btn.active.bivar { background: #8a6daa; border-color: #8a6daa; }
+
+    /* Bivariate legend grid */
+    .bivar-legend { position: relative; width: 120px; height: 120px; margin: 4px auto 0; }
+    .bivar-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; width: 100%; height: 100%; gap: 1px; }
+    .bivar-cell { border-radius: 1px; }
+    .bivar-axis-label {
+      position: absolute; font-family: var(--font-mono); font-size: 8px;
+      color: var(--text-dim); letter-spacing: 0.05em; text-transform: uppercase;
+    }
+    .bivar-axis-x { bottom: -16px; left: 50%; transform: translateX(-50%); }
+    .bivar-axis-y { top: 50%; left: -48px; transform: translateY(-50%) rotate(-90deg); white-space: nowrap; }
 
     .main { display: flex; flex: 1; overflow: hidden; }
 
@@ -215,8 +227,7 @@
     <button class="metric-btn active" id="btn10" onclick="setMetric('top10')">TOP 10%</button>
     <button class="metric-btn" id="btn1"  onclick="setMetric('top1')">TOP 1%</button>
     <div class="metric-sep"></div>
-    <button class="metric-btn" id="btnWater" onclick="setMetric('water')">WATER</button>
-    <button class="metric-btn" id="btnHousing" onclick="setMetric('housing')">HOUSING</button>
+    <button class="metric-btn" id="btnBivar" onclick="setMetric('bivariate')">WATER × HOUSING</button>
     <button class="metric-btn" id="btnCdl" onclick="setMetric('cdl')">LAND USE</button>
     <div class="metric-sep"></div>
     <button class="metric-btn" id="btnParcels" onclick="toggleParcels(this)">PARCELS OFF</button>
@@ -237,8 +248,8 @@
       <div class="stats-grid">
         <div class="stat-card"><div class="val" id="statCounties">—</div><div class="lbl">Counties Shown</div></div>
         <div class="stat-card"><div class="val green" id="statAvgTop10">—</div><div class="lbl">Avg Top 10% Share</div></div>
-        <div class="stat-card"><div class="val blue" id="statAvgWater">—</div><div class="lbl">Avg Water Rating</div></div>
-        <div class="stat-card"><div class="val purple" id="statAvgHousing">—</div><div class="lbl">Avg Housing Index</div></div>
+        <div class="stat-card"><div class="val orange" id="statTotalAg">—</div><div class="lbl">Total Ag Acreage</div></div>
+        <div class="stat-card"><div class="val" id="statAvgTop1">—</div><div class="lbl">Avg Top 1% Share</div></div>
       </div>
     </div>
 
@@ -334,6 +345,50 @@ function cdlPassesFilter(cat) {
   if (cdlSubFilter === 'crops') return isCropCdl(cat);
   if (cdlSubFilter === 'pasture') return isPastureCdl(cat);
   return true; // 'all_ag'
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  Bivariate 3×3 color matrix
+//  Rows (top→bottom): HIGH water thirst → LOW water thirst
+//  Cols (left→right): LOW housing afford → HIGH housing afford
+//
+//           Low Afford    Mid Afford    High Afford
+//  Thirsty  dark purple   magenta       hot pink
+//  Mid      steel blue    muted lilac   warm salmon
+//  Not      teal          sage          gold/green
+// ═══════════════════════════════════════════════════════════════
+const BIVAR_COLORS = [
+  // Row 0: HIGH thirst (top)
+  [[100, 40, 140], [170, 50, 130], [220, 70, 100]],
+  // Row 1: MID thirst
+  [[ 60, 90, 160], [140, 100, 160], [200, 120, 110]],
+  // Row 2: LOW thirst (bottom)
+  [[ 40, 150, 140], [120, 160, 110], [190, 180, 60 ]]
+];
+
+// Classify a value into 0/1/2 tercile
+function tercile(v, min, max) {
+  if (v == null || isNaN(v)) return 1; // default to middle
+  const range = max - min;
+  if (range <= 0) return 1;
+  const norm = (v - min) / range;
+  if (norm < 0.333) return 0;
+  if (norm < 0.667) return 1;
+  return 2;
+}
+
+function bivarColor(waterVal, housingVal) {
+  // Water: high value = thirsty crops → row 0 (top)
+  // Housing: high value = more affordable → col 2 (right)
+  const wTercile = 2 - tercile(waterVal, waterMin, waterMax); // invert: high water = row 0
+  const hTercile = tercile(housingVal, housingMin, housingMax);
+  return BIVAR_COLORS[wTercile][hTercile];
+}
+
+function bivarColorParcel(waterVal, housingVal) {
+  const wTercile = 2 - tercile(waterVal, parcelWaterMin, parcelWaterMax);
+  const hTercile = tercile(housingVal, parcelHousingMin, parcelHousingMax);
+  return BIVAR_COLORS[wTercile][hTercile];
 }
 
 // Parcel-level ranges (computed from loaded parcels)
@@ -433,7 +488,7 @@ function metricVal(d) {
   if (!d) return null;
   switch (currentMetric) {
     case 'top10': return d.top10; case 'top1': return d.top1;
-    case 'water': return d.waterRating; case 'housing': return d.housingIndex;
+    case 'bivariate': return null; // dual-axis, no single value
     case 'cdl':
       if (cdlSubFilter === 'crops') return d.cdlCrop || null;
       if (cdlSubFilter === 'pasture') return d.cdlPasture || null;
@@ -448,11 +503,11 @@ function metricNorm(d) {
   if (v == null) return null;
   switch (currentMetric) {
     case 'top10': case 'top1': return v;
-    case 'water': return (waterMax > waterMin) ? (v - waterMin) / (waterMax - waterMin) : 0.5;
-    case 'housing': return (housingMax > housingMin) ? (v - housingMin) / (housingMax - housingMin) : 0.5;
     default: return null;
   }
 }
+
+function isBivariate() { return currentMetric === 'bivariate'; }
 
 function isInRegion(name) {
   if (currentRegion === 'all') return true;
@@ -482,18 +537,6 @@ function ownershipColor(v) {
   return interpolateStops([[0,[44,74,14]],[.25,[90,138,28]],[.45,[168,200,64]],[.6,[200,168,75]],[.75,[224,123,63]],[.9,[196,60,28]],[1,[140,20,10]]], v);
 }
 
-function waterColor(v) {
-  if (v == null || isNaN(v)) return [60,65,50];
-  const n = (waterMax > waterMin) ? (v - waterMin) / (waterMax - waterMin) : 0.5;
-  return interpolateStops([[0,[30,140,200]],[.25,[50,110,180]],[.5,[100,160,120]],[.75,[200,160,60]],[1,[196,60,28]]], n);
-}
-
-function housingColor(v) {
-  if (v == null || isNaN(v)) return [60,65,50];
-  const n = (housingMax > housingMin) ? (v - housingMin) / (housingMax - housingMin) : 0.5;
-  return interpolateStops([[0,[72,170,60]],[.3,[120,180,100]],[.5,[180,160,80]],[.75,[160,100,180]],[1,[120,50,180]]], n);
-}
-
 const CDL_PALETTE = [
   [122,182,72],[75,160,200],[200,168,75],[224,123,63],[166,104,216],[200,85,85],
   [85,200,160],[180,140,100],[100,140,200],[200,200,80],[140,100,60],[80,180,180],
@@ -513,11 +556,12 @@ function filteredCdlCategories() {
   return cdlCategories.filter(c => cdlPassesFilter(c));
 }
 
-function valueToColor(v) {
+function valueToColor(v, d) {
   switch (currentMetric) {
     case 'top10': case 'top1': return ownershipColor(v);
-    case 'water': return waterColor(v);
-    case 'housing': return housingColor(v);
+    case 'bivariate':
+      if (d) return bivarColor(d.waterRating, d.housingIndex);
+      return [100,100,100];
     case 'cdl': return getCdlColor(v);
     default: return [60,65,50];
   }
@@ -526,37 +570,6 @@ function valueToColor(v) {
 // ═══════════════════════════════════════════════════════════════
 //  Parcel-level color (uses raw value, not county avg)
 // ═══════════════════════════════════════════════════════════════
-function parcelColor(props) {
-  switch (currentMetric) {
-    case 'water': {
-      const v = parseFloat(props.Water_Rating_1);
-      if (isNaN(v)) return [60,65,50,180];
-      // Use parcel-level range for better contrast
-      const mn = parcelWaterMin, mx = parcelWaterMax;
-      const n = (mx > mn) ? (v - mn) / (mx - mn) : 0.5;
-      const c = interpolateStops([[0,[30,140,200]],[.25,[50,110,180]],[.5,[100,160,120]],[.75,[200,160,60]],[1,[196,60,28]]], n);
-      return [...c, 180];
-    }
-    case 'housing': {
-      const v = parseFloat(props.housing_affordability_index);
-      if (isNaN(v)) return [60,65,50,180];
-      const mn = parcelHousingMin, mx = parcelHousingMax;
-      const n = (mx > mn) ? (v - mn) / (mx - mn) : 0.5;
-      const c = interpolateStops([[0,[72,170,60]],[.3,[120,180,100]],[.5,[180,160,80]],[.75,[160,100,180]],[1,[120,50,180]]], n);
-      return [...c, 180];
-    }
-    case 'cdl': {
-      const cat = (props.cdl_majority_category || '').trim();
-      const c = getCdlColor(cat);
-      return [...c, 180];
-    }
-    default: {
-      // For ownership metrics, just show parcels as outlines (no parcel-level ownership data)
-      return [0, 0, 0, 0];
-    }
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════
 //  Format helpers
 // ═══════════════════════════════════════════════════════════════
@@ -564,17 +577,20 @@ function fmtPct(v) { return (v == null || isNaN(v)) ? '—' : (v*100).toFixed(1)
 function fmtAcres(n) { if (!n) return '—'; if (n>=1e6) return (n/1e6).toFixed(2)+'M'; if (n>=1e3) return Math.round(n/1e3)+'K'; return Math.round(n).toLocaleString(); }
 function fmtScore(v,d=1) { return (v == null || isNaN(v)) ? '—' : Number(v).toFixed(d); }
 function fmtMetric(d) {
+  if (currentMetric === 'bivariate') {
+    if (!d) return '—';
+    return `W:${fmtScore(d.waterRating,0)} H:${fmtScore(d.housingIndex,0)}`;
+  }
   const v = metricVal(d);
   switch (currentMetric) {
     case 'top10': case 'top1': return fmtPct(v);
-    case 'water': case 'housing': return fmtScore(v);
     case 'cdl': return v || '—'; default: return '—';
   }
 }
 function metricLabel() {
   switch (currentMetric) {
     case 'top10': return 'Top 10% Ownership Share'; case 'top1': return 'Top 1% Ownership Share';
-    case 'water': return 'Water Rating'; case 'housing': return 'Housing Affordability Index';
+    case 'bivariate': return 'Crop Thirstiness × Housing Affordability';
     case 'cdl':
       if (cdlSubFilter === 'crops') return 'Majority Crop';
       if (cdlSubFilter === 'pasture') return 'Majority Pasture / Grass';
@@ -608,12 +624,12 @@ function filteredEntries(search='') {
 function updateStats() {
   const entries = filteredEntries();
   const v10 = entries.map(d=>d.top10).filter(v=>v!==null);
-  const vW = entries.map(d=>d.waterRating).filter(v=>v!=null&&!isNaN(v));
-  const vH = entries.map(d=>d.housingIndex).filter(v=>v!=null&&!isNaN(v));
+  const v1  = entries.map(d=>d.top1).filter(v=>v!==null);
+  const totalAg = entries.reduce((s,d)=>s+(d.agAcres||0), 0);
   document.getElementById('statCounties').textContent = entries.length;
   document.getElementById('statAvgTop10').textContent = fmtPct(v10.length ? v10.reduce((a,b)=>a+b,0)/v10.length : null);
-  document.getElementById('statAvgWater').textContent = fmtScore(vW.length ? vW.reduce((a,b)=>a+b,0)/vW.length : null);
-  document.getElementById('statAvgHousing').textContent = fmtScore(vH.length ? vH.reduce((a,b)=>a+b,0)/vH.length : null);
+  document.getElementById('statTotalAg').textContent = fmtAcres(totalAg);
+  document.getElementById('statAvgTop1').textContent = fmtPct(v1.length ? v1.reduce((a,b)=>a+b,0)/v1.length : null);
 }
 
 function updateLegend() {
@@ -631,26 +647,38 @@ function updateLegend() {
       cats.map(c => { const [r,g,b]=getCdlColor(c); return `<div class="legend-chip"><div class="legend-dot" style="background:rgb(${r},${g},${b})"></div>${c}</div>`; }).join('') + '</div>' + parcelNote;
     return;
   }
-  let css, labels, parcelRange = '';
-  switch (currentMetric) {
-    case 'top10': case 'top1':
-      label.textContent = currentMetric==='top10'?'Ownership Concentration (Top 10%)':'Ownership Concentration (Top 1%)';
-      css='linear-gradient(to right,#2c4a0e,#5a8a1c,#a8c840,#c8a84b,#e07b3f,#c43c1c)';
-      labels='<span>&lt;20%</span><span>40%</span><span>60%</span><span>80%</span><span>100%</span>'; break;
-    case 'water':
-      label.textContent='Water Rating';
-      css='linear-gradient(to right,#1e8cc8,#3270b4,#64a078,#c8a03c,#c43c1c)';
-      labels=`<span>${fmtScore(waterMin,0)}</span><span>${fmtScore((waterMin+waterMax)/2,0)}</span><span>${fmtScore(waterMax,0)}</span>`;
-      if (parcelsVisible && parcelLayer) parcelRange = `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-dim);margin-top:4px">Parcel range: ${fmtScore(parcelWaterMin,0)} – ${fmtScore(parcelWaterMax,0)}</div>`;
-      break;
-    case 'housing':
-      label.textContent='Housing Affordability Index';
-      css='linear-gradient(to right,#48aa3c,#78b464,#b4a050,#a064b4,#7832b4)';
-      labels=`<span>${fmtScore(housingMin,0)}</span><span>${fmtScore((housingMin+housingMax)/2,0)}</span><span>${fmtScore(housingMax,0)}</span>`;
-      if (parcelsVisible && parcelLayer) parcelRange = `<div style="font-family:var(--font-mono);font-size:9px;color:var(--text-dim);margin-top:4px">Parcel range: ${fmtScore(parcelHousingMin,0)} – ${fmtScore(parcelHousingMax,0)}</div>`;
-      break;
+
+  if (currentMetric === 'bivariate') {
+    label.textContent = 'Crop Thirstiness × Housing Affordability';
+    let cells = '';
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        const [r,g,b] = BIVAR_COLORS[row][col];
+        cells += `<div class="bivar-cell" style="background:rgb(${r},${g},${b})"></div>`;
+      }
+    }
+    container.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;padding:8px 0 20px">
+        <div class="bivar-legend">
+          <div class="bivar-grid">${cells}</div>
+          <div class="bivar-axis-label bivar-axis-x">Housing Affordability →</div>
+          <div class="bivar-axis-label bivar-axis-y">← Crop Thirstiness</div>
+        </div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-dim);text-align:center;line-height:1.6">
+        <span style="color:rgb(220,70,100)">■</span> Thirsty + Affordable
+        <span style="color:rgb(100,40,140);margin-left:6px">■</span> Thirsty + Unaffordable<br>
+        <span style="color:rgb(190,180,60)">■</span> Low-water + Affordable
+        <span style="color:rgb(40,150,140);margin-left:6px">■</span> Low-water + Unaffordable
+      </div>` + parcelNote;
+    return;
   }
-  container.innerHTML = `<div class="legend-bar"><div class="legend-gradient" style="background:${css}"></div><div class="legend-labels">${labels}</div></div>${parcelRange}${parcelNote}`;
+
+  // Ownership gradient
+  label.textContent = currentMetric==='top10'?'Ownership Concentration (Top 10%)':'Ownership Concentration (Top 1%)';
+  const css='linear-gradient(to right,#2c4a0e,#5a8a1c,#a8c840,#c8a84b,#e07b3f,#c43c1c)';
+  const labels='<span>&lt;20%</span><span>40%</span><span>60%</span><span>80%</span><span>100%</span>';
+  container.innerHTML = `<div class="legend-bar"><div class="legend-gradient" style="background:${css}"></div><div class="legend-labels">${labels}</div></div>${parcelNote}`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -659,6 +687,7 @@ function updateLegend() {
 function renderList(search='') {
   const entries = filteredEntries(search);
   if (isCategorical()) entries.sort((a,b)=>(metricVal(a)||'').localeCompare(metricVal(b)||''));
+  else if (isBivariate()) entries.sort((a,b)=>(b.waterRating||0)-(a.waterRating||0)); // sort by thirstiness
   else entries.sort((a,b)=>(metricNorm(b)||0)-(metricNorm(a)||0));
 
   document.getElementById('countyList').innerHTML = entries.map(d => {
@@ -671,7 +700,15 @@ function renderList(search='') {
           <span class="cat-badge" style="background:rgba(${r},${g},${b},0.15);color:rgb(${r},${g},${b})">${cat}</span>
         </div></div></div>`;
     }
-    const mv=metricVal(d), norm=metricNorm(d), [r,g,b]=valueToColor(mv), barW=norm!=null?(norm*100).toFixed(1):'0';
+    if (isBivariate()) {
+      const [r,g,b] = bivarColor(d.waterRating, d.housingIndex);
+      return `<div class="county-item${isSel?' selected':''}" onclick="selectCounty('${d.name.replace(/'/g,"\\'")}')">
+        <div style="width:14px;height:14px;border-radius:2px;background:rgb(${r},${g},${b});flex-shrink:0"></div>
+        <div class="bar-wrap"><div class="name">${d.name}</div><div class="bar-row">
+          <div class="pct" style="color:rgb(${r},${g},${b});min-width:auto">${fmtMetric(d)}</div>
+        </div></div></div>`;
+    }
+    const mv=metricVal(d), norm=metricNorm(d), [r,g,b]=valueToColor(mv,d), barW=norm!=null?(norm*100).toFixed(1):'0';
     return `<div class="county-item${isSel?' selected':''}" onclick="selectCounty('${d.name.replace(/'/g,"\\'")}')">
       <div style="width:3px;height:32px;border-radius:2px;background:rgb(${r},${g},${b});flex-shrink:0"></div>
       <div class="bar-wrap"><div class="name">${d.name}</div><div class="bar-row">
@@ -687,11 +724,11 @@ function renderList(search='') {
 function setMetric(m) {
   currentMetric = m;
   document.querySelectorAll('.metric-btn').forEach(b => {
-    if (b.id!=='btnParcels') b.classList.remove('active','water','housing','cdl');
+    if (b.id!=='btnParcels') b.classList.remove('active','bivar','cdl');
   });
-  const btnMap={top10:'btn10',top1:'btn1',water:'btnWater',housing:'btnHousing',cdl:'btnCdl'};
+  const btnMap={top10:'btn10',top1:'btn1',bivariate:'btnBivar',cdl:'btnCdl'};
   const btn=document.getElementById(btnMap[m]);
-  if (btn) { btn.classList.add('active'); if(m==='water')btn.classList.add('water'); if(m==='housing')btn.classList.add('housing'); if(m==='cdl')btn.classList.add('cdl'); }
+  if (btn) { btn.classList.add('active'); if(m==='bivariate')btn.classList.add('bivar'); if(m==='cdl')btn.classList.add('cdl'); }
 
   // Show/hide CDL sub-filter
   document.getElementById('cdlSubFilter').classList.toggle('visible', m === 'cdl');
@@ -830,7 +867,6 @@ function applyParcelRenderer() {
   if (!parcelLayer) return;
 
   if (currentMetric === 'cdl') {
-    // Color only categories that pass the current sub-filter
     const activeCats = filteredCdlCategories();
     const infos = activeCats.map(cat => {
       const [r,g,b] = getCdlColor(cat);
@@ -838,16 +874,46 @@ function applyParcelRenderer() {
     });
     parcelLayer.renderer = {
       type: "unique-value", field: "cdl_majority_category",
-      // Non-matching parcels (non-ag or filtered out) get dimmed
-      defaultSymbol: { type: "simple-fill", color: [30,32,26,80], outline: { color: [50,55,40,80], width: 0.2 } },
+      // Excluded categories: fully invisible
+      defaultSymbol: { type: "simple-fill", color: [0,0,0,0], outline: { color: [40,44,34,60], width: 0.15 } },
       uniqueValueInfos: infos
     };
-  } else if (currentMetric === 'water') {
-    parcelLayer.renderer = buildParcelRampRenderer("Water_Rating_1", parcelWaterMin, parcelWaterMax,
-      [[30,140,200],[50,110,180],[100,160,120],[200,160,60],[196,60,28]]);
-  } else if (currentMetric === 'housing') {
-    parcelLayer.renderer = buildParcelRampRenderer("housing_affordability_index", parcelHousingMin, parcelHousingMax,
-      [[72,170,60],[120,180,100],[180,160,80],[160,100,180],[120,50,180]]);
+  } else if (currentMetric === 'bivariate') {
+    // Arcade expression to classify into 3x3 bivariate grid (returns "row-col")
+    const wMin = parcelWaterMin, wMax = parcelWaterMax;
+    const hMin = parcelHousingMin, hMax = parcelHousingMax;
+    const wRange = wMax - wMin || 1;
+    const hRange = hMax - hMin || 1;
+    const wThird1 = wMin + wRange * 0.333;
+    const wThird2 = wMin + wRange * 0.667;
+    const hThird1 = hMin + hRange * 0.333;
+    const hThird2 = hMin + hRange * 0.667;
+
+    const arcade = `
+      var w = $feature.Water_Rating_1;
+      var h = $feature.housing_affordability_index;
+      var wc = IIF(w >= ${wThird2}, 0, IIF(w >= ${wThird1}, 1, 2));
+      var hc = IIF(h >= ${hThird2}, 2, IIF(h >= ${hThird1}, 1, 0));
+      return Text(wc) + "-" + Text(hc);
+    `;
+
+    const bivarInfos = [];
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        const [r,g,b] = BIVAR_COLORS[row][col];
+        bivarInfos.push({
+          value: `${row}-${col}`,
+          symbol: { type: "simple-fill", color: [r,g,b,200], outline: { color: [r,g,b,255], width: 0.3 } }
+        });
+      }
+    }
+
+    parcelLayer.renderer = {
+      type: "unique-value",
+      valueExpression: arcade,
+      defaultSymbol: { type: "simple-fill", color: [60,65,50,100], outline: { color: [80,85,70,80], width: 0.2 } },
+      uniqueValueInfos: bivarInfos
+    };
   } else {
     // Ownership metrics: show parcels as simple outlines
     parcelLayer.renderer = {
@@ -855,22 +921,6 @@ function applyParcelRenderer() {
       symbol: { type: "simple-fill", color: [0,0,0,0], outline: { color: [122,182,72,140], width: 0.6 } }
     };
   }
-}
-
-function buildParcelRampRenderer(field, minVal, maxVal, colors) {
-  const range = maxVal - minVal || 1;
-  const stops = colors.map((c, i) => ({
-    value: minVal + (i / (colors.length - 1)) * range,
-    color: [...c, 180], label: i === 0 ? fmtScore(minVal, 0) : (i === colors.length - 1 ? fmtScore(maxVal, 0) : '')
-  }));
-  return {
-    type: "simple",
-    symbol: { type: "simple-fill", color: [60,65,50,120], outline: { color: [80,85,70,100], width: 0.3 } },
-    visualVariables: [{
-      type: "color", field: field,
-      stops: stops
-    }]
-  };
 }
 
 function clearParcels() {
@@ -908,7 +958,7 @@ function applyRenderer() {
   if (!countyLayer) return;
   const infos = Object.values(ownershipMap).map(d => {
     const inR = isInRegion(d.name);
-    const mv = metricVal(d); const [r,g,b] = valueToColor(mv);
+    const mv = metricVal(d); const [r,g,b] = valueToColor(mv, d);
 
     // Make selected county fully transparent when parcels are visible
     const hasParcels = parcelsVisible && parcelLayer && d.name === selectedCounty;
@@ -985,13 +1035,12 @@ function showDetail(name) {
   const d=getOwnership(name); if(!d) return;
   document.getElementById('detailPanel').classList.add('open');
   const [r10,g10,b10]=ownershipColor(d.top10), [r1,g1,b1]=ownershipColor(d.top1);
-  const [rw,gw,bw]=d.waterRating!=null?waterColor(d.waterRating):[60,65,50];
-  const [rh,gh,bh]=d.housingIndex!=null?housingColor(d.housingIndex):[60,65,50];
+  const [rb,gb,bb] = bivarColor(d.waterRating, d.housingIndex);
   const [rc,gc,bc]=getCdlColor(d.cdlCategory);
   const [rcc,gcc,bcc]=getCdlColor(d.cdlCrop);
   const [rcp,gcp,bcp]=getCdlColor(d.cdlPasture);
   const mv=metricVal(d),norm=metricNorm(d);
-  const [rm,gm,bm]=isCategorical()?getCdlColor(mv):valueToColor(mv);
+  const [rm,gm,bm] = isCategorical() ? getCdlColor(mv) : isBivariate() ? [rb,gb,bb] : valueToColor(mv,d);
   const mainBar=norm!=null?(norm*100).toFixed(1):0;
 
   document.getElementById('detailInner').innerHTML = `
@@ -1002,11 +1051,30 @@ function showDetail(name) {
     </div>
     <div class="detail-stat">
       <div class="detail-stat-label">${metricLabel()}</div>
-      <div class="detail-stat-value" style="color:rgb(${rm},${gm},${bm})">${fmtMetric(d)}</div>
-      ${!isCategorical()?`<div class="detail-bar-bg"><div class="detail-bar-fill" style="width:${mainBar}%;background:rgb(${rm},${gm},${bm})"></div></div>`:''}
+      ${isBivariate() ? `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+          <div style="width:28px;height:28px;border-radius:3px;background:rgb(${rm},${gm},${bm})"></div>
+          <div>
+            <div class="detail-stat-value" style="color:rgb(${rm},${gm},${bm});font-size:18px">${fmtMetric(d)}</div>
+          </div>
+        </div>` : `
+        <div class="detail-stat-value" style="color:rgb(${rm},${gm},${bm})">${fmtMetric(d)}</div>
+        ${!isCategorical()?`<div class="detail-bar-bg"><div class="detail-bar-fill" style="width:${mainBar}%;background:rgb(${rm},${gm},${bm})"></div></div>`:''}`}
     </div>
     <div class="detail-divider"></div>
+
+    <!-- Bivariate breakdown -->
     <div class="detail-comparison">
+      <div class="comp-title">Water & Housing</div>
+      <div class="comp-row"><div class="comp-lbl">Crop Water Demand</div><div class="comp-val" style="color:var(--accent4)">${fmtScore(d.waterRating,0)}</div></div>
+      ${d.waterRating!=null?`<div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:2px 0 8px">
+        <div style="height:100%;width:${waterMax>waterMin?((d.waterRating-waterMin)/(waterMax-waterMin)*100).toFixed(1):50}%;background:var(--accent4);border-radius:2px"></div></div>`:''}
+      <div class="comp-row"><div class="comp-lbl">Housing Affordability</div><div class="comp-val" style="color:var(--accent5)">${fmtScore(d.housingIndex,0)}</div></div>
+      ${d.housingIndex!=null?`<div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:2px 0 8px">
+        <div style="height:100%;width:${housingMax>housingMin?((d.housingIndex-housingMin)/(housingMax-housingMin)*100).toFixed(1):50}%;background:var(--accent5);border-radius:2px"></div></div>`:''}
+    </div>
+
+    <div class="detail-comparison" style="margin-top:8px">
       <div class="comp-title">Ownership Concentration</div>
       <div class="comp-row"><div class="comp-lbl">Top 10% owns</div><div class="comp-val" style="color:rgb(${r10},${g10},${b10})">${fmtPct(d.top10)}</div></div>
       <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:2px 0 8px">
@@ -1015,16 +1083,10 @@ function showDetail(name) {
       <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:2px 0">
         <div style="height:100%;width:${d.top1!=null?(d.top1*100).toFixed(1):0}%;background:rgb(${r1},${g1},${b1});border-radius:2px"></div></div>
       <div class="comp-row" style="margin-top:6px"><div class="comp-lbl">Ag Acreage</div><div class="comp-val" style="color:var(--accent2)">${fmtAcres(d.agAcres)}</div></div>
-      <div class="comp-row"><div class="comp-lbl">Owners in Top 10%</div><div class="comp-val" style="color:var(--accent3)">${d.owners10?d.owners10.toLocaleString():'—'}</div></div>
     </div>
+
     <div class="detail-comparison" style="margin-top:8px">
-      <div class="comp-title">Environmental & Socioeconomic</div>
-      <div class="comp-row"><div class="comp-lbl">Water Rating</div><div class="comp-val" style="color:rgb(${rw},${gw},${bw})">${fmtScore(d.waterRating)}</div></div>
-      ${d.waterRating!=null?`<div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:2px 0 8px">
-        <div style="height:100%;width:${waterMax>waterMin?((d.waterRating-waterMin)/(waterMax-waterMin)*100).toFixed(1):50}%;background:rgb(${rw},${gw},${bw});border-radius:2px"></div></div>`:''}
-      <div class="comp-row"><div class="comp-lbl">Housing Affordability</div><div class="comp-val" style="color:rgb(${rh},${gh},${bh})">${fmtScore(d.housingIndex)}</div></div>
-      ${d.housingIndex!=null?`<div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin:2px 0 8px">
-        <div style="height:100%;width:${housingMax>housingMin?((d.housingIndex-housingMin)/(housingMax-housingMin)*100).toFixed(1):50}%;background:rgb(${rh},${gh},${bh});border-radius:2px"></div></div>`:''}
+      <div class="comp-title">Land Use (CDL)</div>
       <div class="comp-row"><div class="comp-lbl">Top Ag Land Use</div><div class="comp-val" style="color:rgb(${rc},${gc},${bc})">${d.cdlCategory||'—'}</div></div>
       <div class="comp-row"><div class="comp-lbl">Top Crop</div><div class="comp-val" style="color:rgb(${rcc},${gcc},${bcc})">${d.cdlCrop||'—'}</div></div>
       <div class="comp-row"><div class="comp-lbl">Top Pasture/Grass</div><div class="comp-val" style="color:rgb(${rcp},${gcp},${bcp})">${d.cdlPasture||'—'}</div></div>
