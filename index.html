@@ -34,10 +34,20 @@
       background: var(--bg);
       color: var(--text);
       font-family: var(--font-body);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Dashboard wrapper — takes exactly one viewport */
+    .dashboard-wrap {
       height: 100vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      flex-shrink: 0;
+      position: relative;
     }
 
     header {
@@ -211,10 +221,93 @@
 
     .esri-ui-bottom-right { display: none; }
     .esri-attribution { display: none !important; }
+
+    /* ── Scroll indicator ── */
+    .scroll-indicator {
+      position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+      z-index: 50; display: flex; flex-direction: column; align-items: center; gap: 4px;
+      cursor: pointer; opacity: 0.7; transition: opacity 0.3s;
+    }
+    .scroll-indicator:hover { opacity: 1; }
+    .scroll-indicator span {
+      font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
+      color: var(--accent); text-transform: uppercase;
+    }
+    .scroll-indicator .arrow {
+      width: 20px; height: 20px; border-right: 2px solid var(--accent);
+      border-bottom: 2px solid var(--accent); transform: rotate(45deg);
+      animation: bounce-down 1.5s ease infinite;
+    }
+    @keyframes bounce-down {
+      0%, 100% { transform: rotate(45deg) translateY(0); }
+      50% { transform: rotate(45deg) translateY(4px); }
+    }
+
+    /* ── Team section ── */
+    .team-section {
+      background: var(--bg); padding: 60px 40px 80px;
+      border-top: 1px solid var(--border);
+    }
+    .team-header {
+      text-align: center; margin-bottom: 48px;
+    }
+    .team-header h2 {
+      font-family: var(--font-head); font-size: 28px; color: var(--text);
+      margin-bottom: 6px;
+    }
+    .team-header p {
+      font-family: var(--font-mono); font-size: 11px; color: var(--text-dim);
+      letter-spacing: 0.08em; text-transform: uppercase;
+    }
+
+    .team-role-label {
+      font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 20px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+
+    .team-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px; max-width: 1200px; margin: 0 auto 48px;
+    }
+
+    .team-card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 6px; padding: 24px; transition: border-color 0.3s;
+    }
+    .team-card:hover { border-color: var(--accent); }
+
+    .team-card-top {
+      display: flex; align-items: center; gap: 14px; margin-bottom: 14px;
+    }
+    .team-avatar {
+      width: 56px; height: 56px; border-radius: 50%; object-fit: cover;
+      border: 2px solid var(--border); flex-shrink: 0;
+    }
+    .team-name {
+      font-family: var(--font-head); font-size: 18px; color: var(--text); line-height: 1.2;
+    }
+    .team-card-bio {
+      font-size: 13px; color: var(--text-dim); line-height: 1.65;
+    }
+    .team-card-bio a {
+      color: var(--accent4); text-decoration: none;
+    }
+    .team-card-bio a:hover { text-decoration: underline; }
+
+    /* Org card — wider */
+    .team-org {
+      max-width: 1200px; margin: 0 auto;
+    }
+    .team-org .team-card {
+      border-color: var(--accent); background: rgba(200,168,75,0.04);
+    }
+    .team-org .team-avatar { border-radius: 8px; width: 64px; height: 64px; }
   </style>
 </head>
 <body>
 
+<div class="dashboard-wrap">
 <header>
   <div class="logo">
     <div class="logo-mark">CA</div>
@@ -288,6 +381,99 @@
     <div class="detail-inner" id="detailInner"></div>
   </div>
 </div>
+
+  <!-- Scroll indicator -->
+  <div class="scroll-indicator" onclick="document.getElementById('teamSection').scrollIntoView({behavior:'smooth'})">
+    <span>Meet the Team</span>
+    <div class="arrow"></div>
+  </div>
+</div><!-- end dashboard-wrap -->
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!--  TEAM SECTION                                             -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<section class="team-section" id="teamSection">
+
+  <div class="team-header">
+    <h2>The Team Behind the Data</h2>
+    <p>Just Transitions Policy Lab · Winter Quarter 2026</p>
+  </div>
+
+  <!-- Research & Data Analysts -->
+  <div style="max-width:1200px;margin:0 auto">
+    <div class="team-role-label">Research & Data Analysts</div>
+  </div>
+  <div class="team-grid">
+
+    <div class="team-card">
+      <div class="team-card-top">
+        <img class="team-avatar" src="images/aleena-pfp.jpg" alt="Aleena" />
+        <div class="team-name">Aleena</div>
+      </div>
+      <div class="team-card-bio">
+        Aleena is an undergraduate student at Stanford studying political science, concentrating in political economy and development. She is particularly interested in understanding how corporations can meet compliance measures to make for a more sustainable world. Through internships with different organizations, she has developed transparency metrics to monitor carbon emissions, worked to find solutions to reduce carbon use within supply chains, and crafted policy decisions. Further, she has worked with the UN to understand corporate interests and develop strategies to help companies meet the Sustainable Development Goals. Through her experience working at development banks and conducting and publishing research, she has become interested in how historical forces shape contemporary political and economic systems, particularly the relationship between governments, corporations, and the public at multiple levels.
+      </div>
+    </div>
+
+    <div class="team-card">
+      <div class="team-card-top">
+        <img class="team-avatar" src="images/christian-pfp.jpg" alt="Christian" />
+        <div class="team-name">Christian Canellos</div>
+      </div>
+      <div class="team-card-bio">
+        Christian Canellos is a graduating MS in Stanford's Earth Systems program. He's passionate about building and mapping interdisciplinary problems at the intersection of humans, economics, justice, and the environment. He enjoyed developing the "crop thirstiness" table and many of the novel data intersections. Feel free to get in contact with him at <a href="mailto:christianctc@gmail.com">christianctc@gmail.com</a> or on <a href="https://www.linkedin.com/in/christian-canellos/" target="_blank" rel="noopener">LinkedIn</a>.
+      </div>
+    </div>
+
+    <div class="team-card">
+      <div class="team-card-top">
+        <img class="team-avatar" src="images/Sanjana-pfp.jpg" alt="Sanjana" />
+        <div class="team-name">Sanjana Vadlapatla</div>
+      </div>
+      <div class="team-card-bio">
+        Sanjana Vadlapatla is a first-year at Stanford University studying political science. Her interests include inequality, electoral behavior, and how institutions shape distribution of power and resources.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Research Project Manager -->
+  <div style="max-width:1200px;margin:0 auto">
+    <div class="team-role-label">Research Project Manager</div>
+  </div>
+  <div class="team-grid">
+
+    <div class="team-card">
+      <div class="team-card-top">
+        <img class="team-avatar" src="images/becca-pfp.jpg" alt="Becca" />
+        <div class="team-name">Becca</div>
+      </div>
+      <div class="team-card-bio">
+        Bio coming soon.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Organization -->
+  <div style="max-width:1200px;margin:0 auto">
+    <div class="team-role-label">Organization</div>
+  </div>
+  <div class="team-org">
+
+    <div class="team-card">
+      <div class="team-card-top">
+        <img class="team-avatar" src="images/pluri-logo.png" alt="PLRCAWG" />
+        <div class="team-name">Plurinational Land Reform in CA Working Group</div>
+      </div>
+      <div class="team-card-bio">
+        The Plurinational Land Reform in CA Working Group (PLRCAWG) is a grassroots collective of young organizers, researchers, and students building campesin@ viability across California. We are eternally grateful to Aleena, Christian, Sanjana, and Becca for taking the lead on this project and parsing through millions of property parcel records. Their clarity, diligence, and tenacity in not merely cleaning data, but producing entirely new indices on thirstiness and revamping methodologies to effectively allow subsequent research teams to use this data is an insurmountable gift to the landless communities across California. It is without a doubt, a massive step for us to advocate for popular agrarian reform in our state. We as a working group helped insofar to create the architecture of this dashboard & backend coding of data visualization, but the life of this initiative is found within the amazing cohort of the Just Transitions Policy Lab of Winter Quarter 2026.
+      </div>
+    </div>
+
+  </div>
+
+</section>
 
 <script>
 // ═══════════════════════════════════════════════════════════════
